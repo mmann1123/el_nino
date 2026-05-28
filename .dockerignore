@@ -1,0 +1,10 @@
+data/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+.env
+.env.*
+service-account*.json
+.streamlit/secrets.toml

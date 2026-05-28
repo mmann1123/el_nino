@@ -1,0 +1,24 @@
+# Local data store (overridden by STORAGE_ROOT env var in cloud)
+data/raw/
+data/climatology/
+data/enso/
+data/*.duckdb
+data/*.duckdb.wal
+data/freshness.json
+
+# Secrets
+.streamlit/secrets.toml
+service-account*.json
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+
+# Editor
+.vscode/
+.idea/
