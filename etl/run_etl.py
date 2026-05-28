@@ -22,6 +22,8 @@ from __future__ import annotations
 import argparse
 from datetime import date, datetime, timedelta
 
+import pandas as pd
+
 from .. import config
 from . import climatology, enso, synth
 from .indicators import INDICATORS
@@ -49,8 +51,8 @@ def cmd_synth(args) -> None:
     synth.synth_chirps(start, end)
     print("  smap...")
     synth.synth_smap(start, end)
-    print("  ssebop...")
-    synth.synth_ssebop(start, end)
+    print("  wapor...")
+    synth.synth_wapor(start, end)
     print("  imerg...")
     synth.synth_imerg(start, end)
 
@@ -72,6 +74,85 @@ def cmd_fetch(args) -> None:
     for dep, group in df.groupby("departamento"):
         storage.upsert_raw(args.indicator, dep, group.copy())
     print(f"  wrote {len(df)} rows across {df['departamento'].nunique()} departamentos")
+
+
+def cmd_prelim(args) -> None:
+    """Fill the gap between the latest GEE-hosted CHIRPS date and today using
+    UCSB's CHIRPS-Prelim daily TIFFs (~3-day latency instead of GEE's ~28 days).
+    """
+    config.ensure_dirs()
+    from . import chirps_prelim, storage
+    from .indicators.chirps import aggregate_to_pentad, recompute_spi_for_all_parquets
+
+    # Find latest observed (non-forecast) CHIRPS date currently on disk.
+    chirps_dir = config.RAW_DIR / "chirps"
+    latest: date | None = None
+    if chirps_dir.exists():
+        for f in chirps_dir.glob("*.parquet"):
+            df = storage.read_parquet(f)
+            if df.empty:
+                continue
+            obs = df[~df.get("is_forecast", False).fillna(False)] if "is_forecast" in df.columns else df
+            if obs.empty:
+                continue
+            d_max = pd.to_datetime(obs["date"]).max().date()
+            if latest is None or d_max > latest:
+                latest = d_max
+    if latest is None:
+        latest = date(2026, 4, 29)  # safe fallback
+
+    start = args.start or (latest + timedelta(days=1))
+    end = args.end or (config.today() - timedelta(days=1))
+    if start > end:
+        print(f"Already up to date (latest observed: {latest}, requested {start}..{end})")
+        return
+
+    print(f"Fetching UCSB CHIRPS-Prelim daily {start} -> {end}")
+    daily = chirps_prelim.fetch_window(start, end, on_progress=print)
+    if daily.empty:
+        print("  (no rows returned — UCSB may not have these dates yet)")
+        return
+
+    print(f"  pulled {len(daily)} daily rows")
+
+    # Aggregate to pentads (same convention as the GEE-sourced data).
+    pentads = aggregate_to_pentad(daily)
+    if pentads.empty:
+        print("  (pentad aggregation produced no rows; window too narrow?)")
+        return
+    pentads["is_forecast"] = False
+    # SPI columns will be recomputed below.
+    for col in ("spi_1", "spi_3", "spi_6"):
+        pentads[col] = pd.NA
+
+    for dep, group in pentads.groupby("departamento"):
+        storage.upsert_raw("chirps", dep, group.copy())
+    print(f"  wrote {len(pentads)} pentad rows")
+
+    print("Recomputing SPI across observed + forecast...")
+    recompute_spi_for_all_parquets()
+    print("Done.")
+
+
+def cmd_forecast(args) -> None:
+    """Pull the latest 15-day rainfall forecast (NOAA GFS) and merge into CHIRPS."""
+    config.ensure_dirs()
+    from .indicators.chirps import CHIRPS, recompute_spi_for_all_parquets
+    indicator = CHIRPS()
+    issuance = args.issuance or (config.today() - timedelta(days=1))
+    print(f"Fetching GFS 15-day forecast (issuance {issuance})")
+    df = indicator.fetch_forecast(issuance)
+    if df.empty:
+        print("  (no forecast data returned)")
+        return
+
+    from . import storage
+    for dep, group in df.groupby("departamento"):
+        storage.upsert_raw("chirps", dep, group.copy())
+    print(f"  wrote {len(df)} forecast pentads across {df['departamento'].nunique()} departamentos")
+    print("Recomputing SPI across observed + forecast...")
+    recompute_spi_for_all_parquets()
+    print("Done.")
 
 
 def cmd_backfill(args) -> None:
@@ -153,6 +234,19 @@ def main() -> None:
     p_fetch.add_argument("--end", type=_parse_date, default=None)
     p_fetch.set_defaults(func=cmd_fetch)
 
+    p_prelim = sub.add_parser("prelim",
+        help="fill GEE-to-today CHIRPS gap with UCSB CHIRPS-Prelim daily TIFFs (~3d latency)")
+    p_prelim.add_argument("--start", type=_parse_date, default=None,
+                          help="default: latest observed CHIRPS date + 1")
+    p_prelim.add_argument("--end", type=_parse_date, default=None,
+                          help="default: yesterday")
+    p_prelim.set_defaults(func=cmd_prelim)
+
+    p_fc = sub.add_parser("forecast", help="pull NOAA GFS 15-day rainfall forecast")
+    p_fc.add_argument("--issuance", type=_parse_date, default=None,
+                      help="GFS issuance date (default: yesterday)")
+    p_fc.set_defaults(func=cmd_forecast)
+
     p_back = sub.add_parser("backfill", help="chunked historical backfill from GEE")
     p_back.add_argument("--indicator", required=True, choices=list(INDICATORS))
     p_back.add_argument("--start", type=_parse_date, default=None,
@@ -160,7 +254,7 @@ def main() -> None:
     p_back.add_argument("--end", type=_parse_date, default=None,
                         help="default: today")
     p_back.add_argument("--chunk-months", type=int, default=None,
-                        help="default: per-indicator hint (CHIRPS 24, SMAP 12, SSEBop 60, IMERG 6)")
+                        help="default: per-indicator hint (CHIRPS 24, SMAP 12, WAPOR 60, IMERG 6)")
     p_back.set_defaults(func=cmd_backfill)
 
     p_clim = sub.add_parser("climatology", help="recompute per-DOY fences")

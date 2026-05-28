@@ -1,12 +1,13 @@
 """U.S. Drought Monitor classification — what non-technical users actually
 recognize. SPI / standardized-anomaly thresholds in, plain-language labels
-and colors out.
+and colors out. Symmetric wet/dry tiers because the dashboard also tracks
+overly-wet seasons (which cause their own crop problems: late planting,
+fungal disease, lodging).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from scipy.stats import norm
 
@@ -14,36 +15,70 @@ from scipy.stats import norm
 @dataclass
 class DroughtCategory:
     label: str
-    short: str  # USDM code (D0..D4 or special)
-    color: str  # hex
+    short: str          # USDM-style code (D0..D4, W1..W3, N, ?)
+    color: str          # hex
     description: str
+    is_pending: bool = False
 
 
-WETTER = DroughtCategory("Wetter than usual", "W", "#1f77b4",
-                         "Conditions are wetter than typical for this time of year.")
-NORMAL = DroughtCategory("Normal", "N", "#9e9e9e",
-                         "Conditions are within the typical range for this time of year.")
-D0 = DroughtCategory("Abnormally Dry", "D0", "#fff176",
-                     "Going into drought or recovering from drought. Watch closely.")
-D1 = DroughtCategory("Moderate Drought", "D1", "#ffb74d",
-                     "Some damage to crops; streams and soil moisture below normal.")
-D2 = DroughtCategory("Severe Drought", "D2", "#fb8c00",
-                     "Crop losses likely; water shortages common.")
-D3 = DroughtCategory("Extreme Drought", "D3", "#e53935",
-                     "Major crop losses; widespread water shortages.")
-D4 = DroughtCategory("Exceptional Drought", "D4", "#b71c1c",
-                     "Exceptional and widespread crop losses; emergency water shortages.")
+PENDING = DroughtCategory(
+    "Computing…", "?", "#cfd8dc",
+    "Not enough data yet to classify. The historical baseline or recent observations are still being computed.",
+    is_pending=True,
+)
+NORMAL = DroughtCategory(
+    "Normal", "N", "#9e9e9e",
+    "Conditions are within the typical range for this time of year.",
+)
+# Wet tiers mirror the dry tiers symmetrically.
+W1 = DroughtCategory(
+    "Wetter than usual", "W1", "#90caf9",
+    "Wetter than typical for this time of year. Watch for delayed planting or fungal pressure.",
+)
+W2 = DroughtCategory(
+    "Very wet", "W2", "#42a5f5",
+    "Substantially wetter than typical. Flood risk in low-lying fields; postrera planting may slip.",
+)
+W3 = DroughtCategory(
+    "Extremely wet", "W3", "#1565c0",
+    "Extremely wet conditions for this time of year. Likely waterlogging, lost yield in affected zones.",
+)
+D0 = DroughtCategory(
+    "Abnormally Dry", "D0", "#fff176",
+    "Going into drought or recovering from drought. Watch closely.",
+)
+D1 = DroughtCategory(
+    "Moderate Drought", "D1", "#ffb74d",
+    "Some damage to crops; streams and soil moisture below normal.",
+)
+D2 = DroughtCategory(
+    "Severe Drought", "D2", "#fb8c00",
+    "Crop losses likely; water shortages common.",
+)
+D3 = DroughtCategory(
+    "Extreme Drought", "D3", "#e53935",
+    "Major crop losses; widespread water shortages.",
+)
+D4 = DroughtCategory(
+    "Exceptional Drought", "D4", "#b71c1c",
+    "Exceptional and widespread crop losses; emergency water shortages.",
+)
 
 
 def classify(z: float | None) -> DroughtCategory:
-    """Map a standardized anomaly (z-score / SPI) to a USDM category.
+    """Map a standardized anomaly (z-score / SPI) to a USDM-style category.
 
-    Thresholds follow the U.S. Drought Monitor's SPI convention.
+    Returns PENDING when input is None/NaN so the UI can show "Computing…"
+    rather than misleading "Normal."
     """
-    if z is None or (isinstance(z, float) and (z != z)):  # NaN check
-        return NORMAL
-    if z > 1.0:
-        return WETTER
+    if z is None or (isinstance(z, float) and (z != z)):
+        return PENDING
+    if z >= 2.5:
+        return W3
+    if z >= 2.0:
+        return W2
+    if z >= 1.0:
+        return W1
     if z > -1.0:
         return NORMAL
     if z > -1.3:

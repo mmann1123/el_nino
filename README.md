@@ -1,7 +1,7 @@
 # El Salvador Drought & Plant-Stress Dashboard
 
 Sign-in-gated Streamlit dashboard tracking CHIRPS rainfall (with SPI-1/3/6),
-SMAP L4 root-zone soil moisture, SSEBop v6 ETa anomaly, and IMERG-Late rainfall
+SMAP L4 root-zone soil moisture, FAO WAPOR v3 L1 AETI evapotranspiration, and IMERG-Late rainfall
 for the 14 departamentos of El Salvador. Same envelope-rendering pattern as the
 existing FEWS dashboard. Design plan: `~/.claude/plans/i-need-to-design-parsed-hare.md`.
 
@@ -88,7 +88,7 @@ el_nino/
 │       ├── base.py
 │       ├── chirps.py          # CHIRPS v3 + SPI
 │       ├── smap.py            # SMAP L4 RZSM
-│       ├── ssebop.py          # SSEBop v6 ETa
+│       ├── wapor.py           # FAO WAPOR v3 L1 AETI (dekadal ET)
 │       └── imerg.py           # IMERG-Late
 ├── dashboard/
 │   ├── app.py                 # Streamlit entry (3 tabs)

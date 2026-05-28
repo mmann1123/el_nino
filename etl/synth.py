@@ -1,5 +1,5 @@
 """Synthetic-data generator. Lets the dashboard render without GEE access
-configured. Produces realistic-shaped CHIRPS/SMAP/SSEBop/IMERG timeseries
+configured. Produces realistic-shaped CHIRPS/SMAP/WAPOR/IMERG timeseries
 for the 14 departamentos: seasonal cycle + AR(1) noise + a 2015-like dry
 anomaly in the canícula window of El Niño years from the NOAA ONI.
 
@@ -20,9 +20,9 @@ from . import climatology, enso, freshness, storage
 from .indicators import INDICATORS
 
 DEPARTAMENTO_FALLBACK = [
-    "Ahuachapán", "Cabañas", "Chalatenango", "Cuscatlán", "La Libertad",
-    "La Paz", "La Unión", "Morazán", "San Miguel", "San Salvador",
-    "San Vicente", "Santa Ana", "Sonsonate", "Usulután",
+    "Ahuachapan", "Cabanas", "Chalatenango", "Cuscatlan", "La Libertad",
+    "La Paz", "La Union", "Morazan", "San Miguel", "San Salvador",
+    "San Vicente", "Santa Ana", "Sonsonate", "Usulutan",
 ]
 
 RNG = np.random.default_rng(20260528)
@@ -113,7 +113,7 @@ def synth_smap(start: date, end: date) -> None:
         storage.upsert_raw("smap", dep, df)
 
 
-def synth_ssebop(start: date, end: date) -> None:
+def synth_wapor(start: date, end: date) -> None:
     deps = _departamentos()
     nino_years = _el_nino_year_set()
     # Dekadal: 3 records per month
@@ -140,7 +140,7 @@ def synth_ssebop(start: date, end: date) -> None:
             val = base_eta + anomaly + RNG.normal(0, 3.0)
             rows.append({"date": d, "departamento": dep, "eta_mm": float(val), "is_forecast": False})
         df = pd.DataFrame(rows)
-        storage.upsert_raw("ssebop", dep, df)
+        storage.upsert_raw("wapor", dep, df)
 
 
 def synth_imerg(start: date, end: date) -> None:

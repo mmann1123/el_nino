@@ -39,7 +39,7 @@ class Indicator(ABC):
     #   CHIRPS pentad: 14 × 73 ≈ 1022/yr → safe at 12 months
     #   SMAP 3-day:    14 × 122 ≈ 1700/yr → safe at 12 months
     #   IMERG daily:   14 × 365 ≈ 5110/yr → use 6 months
-    #   SSEBop dekadal:14 × 36 ≈ 504/yr → safe at 24+ months
+    #   WAPOR dekadal: 14 × 36 ≈ 504/yr → safe at 24+ months
     default_chunk_months: int = 12
     min_chunk_months: int = 1
 

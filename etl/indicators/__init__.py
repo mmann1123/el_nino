@@ -1,12 +1,12 @@
 from .base import Indicator
 from .chirps import CHIRPS
 from .smap import SMAP
-from .ssebop import SSEBop
+from .wapor import WAPOR
 from .imerg import IMERG
 
 INDICATORS: dict[str, type[Indicator]] = {
     "chirps": CHIRPS,
     "smap": SMAP,
-    "ssebop": SSEBop,
+    "wapor": WAPOR,
     "imerg": IMERG,
 }

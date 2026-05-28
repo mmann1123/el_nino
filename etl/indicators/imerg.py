@@ -27,6 +27,8 @@ class IMERG(Indicator):
 
     def fetch(self, start: date, end: date) -> pd.DataFrame:
         import ee
+        from .. import gee
+        gee.init()
         coll = (
             ee.ImageCollection(self.ASSET)
             .filterDate(start.isoformat(), end.isoformat())

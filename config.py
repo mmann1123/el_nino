@@ -13,9 +13,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()  # picks up el_nino/.env if present
-
 PROJECT_ROOT = Path(__file__).resolve().parent
+load_dotenv(PROJECT_ROOT / ".env")
+
 STORAGE_ROOT = Path(os.environ.get("STORAGE_ROOT", PROJECT_ROOT / "data"))
 
 RAW_DIR = STORAGE_ROOT / "raw"
@@ -35,9 +35,10 @@ CLIMATOLOGY_START_YEAR = 1981
 CLIMATOLOGY_END_YEAR = 2025
 
 # Eastern Dry Corridor — the operational focus from el_nino/notes.md.
-DRY_CORRIDOR_DEPARTAMENTOS = ["Morazán", "San Miguel", "La Unión", "Usulután"]
+# Names match FAO/GAUL/2015/level1 ADM1_NAME (unaccented).
+DRY_CORRIDOR_DEPARTAMENTOS = ["Morazan", "San Miguel", "La Union", "Usulutan"]
 
-INDICATORS = ["chirps", "smap", "ssebop", "imerg"]
+INDICATORS = ["chirps", "smap", "wapor", "imerg"]
 
 
 def ensure_dirs() -> None:
