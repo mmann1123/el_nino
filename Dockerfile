@@ -5,8 +5,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# System deps:
+#   gcc/g++       — for any sdist that needs to compile (scipy fallback, etc.)
+#   libgeos-dev   — geopandas/shapely
+#   libgdal-dev   — rasterio (UCSB CHIRPS-Prelim zonal stats)
+#   libexpat1     — gdal runtime
+#   curl          — for healthchecks / debugging
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc g++ libgeos-dev \
+        gcc g++ libgeos-dev libgdal-dev libexpat1 curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY el_nino/requirements.txt /app/el_nino/requirements.txt
