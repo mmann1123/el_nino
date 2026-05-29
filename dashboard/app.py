@@ -99,9 +99,31 @@ NOTABLE_LA_NINA_YEARS = [1988, 1999, 2007, 2010, 2020]
 today_ = config.today()
 
 # ---------- Sidebar ----------
+
+def _header_icon_html() -> str:
+    """Inline-embed the drought icon from dashboard/assets/drought.png (or .svg)
+    as base64 so it ships with the app and doesn't depend on static serving.
+    Falls back to a desert emoji if the asset isn't present yet."""
+    import base64
+    assets = Path(__file__).resolve().parent / "assets"
+    for name, mime in (("drought.png", "image/png"),
+                       ("drought.svg", "image/svg+xml")):
+        p = assets / name
+        if p.exists() and p.stat().st_size > 0:
+            b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+            return (
+                f'<img src="data:{mime};base64,{b64}" alt="" '
+                'style="width:26px;height:26px;vertical-align:middle;'
+                'margin-right:8px;">'
+            )
+    # Fallback until the user drops drought.png into the assets folder.
+    return '<span style="font-size:1.3em;margin-right:6px;">🏜️</span>'
+
+
 st.sidebar.markdown(
-    "<h2 style='margin-top:0;margin-bottom:0.6em;white-space:nowrap;font-size:1.25em;'>"
-    "🌾 ES Drought Monitor</h2>",
+    "<h2 style='margin-top:0;margin-bottom:0.6em;white-space:nowrap;"
+    "font-size:1.25em;display:flex;align-items:center;'>"
+    f"{_header_icon_html()}ES Drought Monitor</h2>",
     unsafe_allow_html=True,
 )
 st.sidebar.caption("El Salvador maize-season indicators")
@@ -173,6 +195,17 @@ if reload_clicked:
 
 # Refresh timestamps directly under the "Check for new data" button.
 freshness.sidebar_refresh_caption()
+
+# Required Flaticon attribution for the sidebar icon (drought.png).
+# Rendered at the bottom of the sidebar so it's visible but unobtrusive.
+st.sidebar.markdown(
+    "<div style='margin-top:1.5em;font-size:0.7em;color:#90a4ae;line-height:1.3;'>"
+    'Icon: <a href="https://www.flaticon.com/free-icons/drought" '
+    'title="drought icons" style="color:#90a4ae;text-decoration:none;">'
+    "Drought icons created by Nualnoi Kinkaeo — Flaticon</a>"
+    "</div>",
+    unsafe_allow_html=True,
+)
 
 tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
 
