@@ -12,28 +12,35 @@ from dataclasses import dataclass
 from scipy.stats import norm
 
 
+DARK_INK = "#37474f"   # for use on light backgrounds
+
+
 @dataclass
 class DroughtCategory:
     label: str
     short: str          # USDM-style code (D0..D4, W1..W3, N, ?)
     color: str          # hex
     description: str
+    text_color: str = "white"
     is_pending: bool = False
 
 
 PENDING = DroughtCategory(
     "Computing…", "?", "#cfd8dc",
     "Not enough data yet to classify. The historical baseline or recent observations are still being computed.",
+    text_color=DARK_INK,
     is_pending=True,
 )
 NORMAL = DroughtCategory(
-    "Normal", "N", "#9e9e9e",
+    "Normal", "N", "#a5d6a7",   # Material light green; reads as "OK / healthy"
     "Conditions are within the typical range for this time of year.",
+    text_color=DARK_INK,
 )
 # Wet tiers mirror the dry tiers symmetrically.
 W1 = DroughtCategory(
     "Wetter than usual", "W1", "#90caf9",
     "Wetter than typical for this time of year. Watch for delayed planting or fungal pressure.",
+    text_color=DARK_INK,
 )
 W2 = DroughtCategory(
     "Very wet", "W2", "#42a5f5",
@@ -46,10 +53,12 @@ W3 = DroughtCategory(
 D0 = DroughtCategory(
     "Abnormally Dry", "D0", "#fff176",
     "Going into drought or recovering from drought. Watch closely.",
+    text_color=DARK_INK,
 )
 D1 = DroughtCategory(
     "Moderate Drought", "D1", "#ffb74d",
     "Some damage to crops; streams and soil moisture below normal.",
+    text_color=DARK_INK,
 )
 D2 = DroughtCategory(
     "Severe Drought", "D2", "#fb8c00",

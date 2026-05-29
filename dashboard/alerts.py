@@ -192,43 +192,51 @@ def banner() -> None:
                     f"soil moisture `{f['rzsm_min_z']:.2f}σ`, on {f['fire_date']}"
                 )
 
-    # ---- past triggered years expander ----
-    if past_triggered:
-        by_year: dict[int, list[str]] = defaultdict(list)
-        for f in past_triggered:
-            by_year[f["year"]].append(f["departamento"])
-        years_summary = ", ".join(str(y) for y in sorted(by_year, reverse=True))
-        with st.expander(
-            f"📜 Past years this alert triggered: {len(by_year)} ({years_summary})"
-        ):
-            for y in sorted(by_year, reverse=True):
-                deps = sorted(by_year[y])
+    # ---- confidence expander (now also contains the past-triggered history) ----
+    if trig.stats is not None or past_triggered:
+        if trig.stats is not None:
+            s = trig.stats
+            heading = f"How confident is this alert? (based on {s.n_years} years of data)"
+        else:
+            heading = "Past years this alert triggered"
+
+        with st.expander(heading):
+            if trig.stats is not None:
                 st.markdown(
-                    f"- **{y}** — {len(deps)} departamento{'s' if len(deps) != 1 else ''}: "
-                    f"{', '.join(deps)}"
+                    f"""
+                    | Metric | Estimate | 95% range |
+                    |---|---:|---:|
+                    | When triggered, how often there was a real drought event | {s.precision:.0%} | {s.precision_ci[0]:.0%} – {s.precision_ci[1]:.0%} |
+                    | Fraction of drought years the alert catches | {s.recall:.0%} | {s.recall_ci[0]:.0%} – {s.recall_ci[1]:.0%} |
+                    | Fraction of *severe* drought years caught (e.g., 2015) | {s.severe_recall:.0%} | {s.severe_recall_ci[0]:.0%} – {s.severe_recall_ci[1]:.0%} |
+                    | False alarms per decade | {s.fp_per_decade:.1f} | {s.fp_per_decade_ci[0]:.1f} – {s.fp_per_decade_ci[1]:.1f} |
+
+                    The thresholds for this alert were chosen by checking which
+                    ones would have correctly flagged the documented El Niño
+                    drought years (especially 2015) without firing in normal
+                    years. With only {s.n_years} years of soil-moisture data, the
+                    margin of error is still wide. Re-run the calibration
+                    annually as more data accumulates.
+                    """
                 )
 
-    # ---- confidence expander ----
-    if trig.stats is not None:
-        s = trig.stats
-        with st.expander(f"How confident is this alert? (based on {s.n_years} years of data)"):
-            st.markdown(
-                f"""
-                | Metric | Estimate | 95% range |
-                |---|---:|---:|
-                | When triggered, how often there was a real drought event | {s.precision:.0%} | {s.precision_ci[0]:.0%} – {s.precision_ci[1]:.0%} |
-                | Fraction of drought years the alert catches | {s.recall:.0%} | {s.recall_ci[0]:.0%} – {s.recall_ci[1]:.0%} |
-                | Fraction of *severe* drought years caught (e.g., 2015) | {s.severe_recall:.0%} | {s.severe_recall_ci[0]:.0%} – {s.severe_recall_ci[1]:.0%} |
-                | False alarms per decade | {s.fp_per_decade:.1f} | {s.fp_per_decade_ci[0]:.1f} – {s.fp_per_decade_ci[1]:.1f} |
-
-                The thresholds for this alert were chosen by checking which
-                ones would have correctly flagged the documented El Niño
-                drought years (especially 2015) without firing in normal
-                years. With only {s.n_years} years of soil-moisture data, the
-                margin of error is still wide. Re-run the calibration
-                annually as more data accumulates.
-                """
-            )
+            # Past triggered-years history (moved here from its own expander
+            # so users get one consolidated "track record" section).
+            if past_triggered:
+                by_year: dict[int, list[str]] = defaultdict(list)
+                for f in past_triggered:
+                    by_year[f["year"]].append(f["departamento"])
+                years_summary = ", ".join(str(y) for y in sorted(by_year, reverse=True))
+                st.markdown(
+                    f"**📜 Past years this alert triggered: {len(by_year)} "
+                    f"({years_summary})**"
+                )
+                for y in sorted(by_year, reverse=True):
+                    deps = sorted(by_year[y])
+                    st.markdown(
+                        f"- **{y}** — {len(deps)} departamento{'s' if len(deps) != 1 else ''}: "
+                        f"{', '.join(deps)}"
+                    )
 
 
 def _doy_to_label(doy: int, year: int) -> str:

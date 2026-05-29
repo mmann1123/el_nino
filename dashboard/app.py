@@ -113,15 +113,31 @@ if not deps_available:
     st.stop()
 
 default_dep = data.ALL if data.ALL in deps_available else deps_available[0]
+
+
+def _on_dep_dropdown_changed() -> None:
+    """When the user picks a departamento from the dropdown, clear any stale
+    map-click selection so the prior click doesn't override the new choice on
+    the next rerun."""
+    st.session_state.pop("dep_map_select", None)
+
+
+# Resolve the current departamento from session_state (set either by this
+# widget or by a click on the country map below).
+default_idx = deps_available.index(st.session_state.get("dep_choice", default_dep))
 departamento = st.sidebar.selectbox(
     "Departamento", deps_available,
-    index=deps_available.index(default_dep),
+    index=default_idx,
+    on_change=_on_dep_dropdown_changed,
     help=(
         "Pick an El Salvador departamento, or 'All (country mean)' for a "
-        "nationwide average. Eastern Dry Corridor focus: Morazán, San Miguel, "
-        "La Unión, Usulután."
+        "nationwide average. You can also click any departamento on the map. "
+        "Eastern Dry Corridor focus: Morazán, San Miguel, La Unión, Usulután."
     ),
 )
+# Persist the dropdown's current value so the index= computation works on
+# next rerun and so map clicks can compare against the active selection.
+st.session_state["dep_choice"] = departamento
 
 indicator_name = st.sidebar.selectbox(
     "Indicator",
@@ -165,15 +181,60 @@ with tabs[0]:
     st.subheader(f"Overview — {departamento}")
     st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
 
-    # Country-wide status mini-map
+    # Country-wide status mini-map. Click events on the polygons re-select the
+    # corresponding departamento in the sidebar dropdown.
     map_col, legend_col = st.columns([3, 1])
     with map_col:
         map_fig = map_view.departamento_status_figure(indicator_name, selected_departamento=departamento)
         if map_fig is not None:
             st.markdown(
-                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all 14 departamentos**"
+                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all 14 departamentos**  \n"
+                "<span style='font-size:0.85em;color:#546e7a;'>"
+                "💡 Click any departamento to focus the dashboard on it.</span>",
+                unsafe_allow_html=True,
             )
-            st.plotly_chart(map_fig, width="stretch", config={"displayModeBar": False})
+            map_event = st.plotly_chart(
+                map_fig,
+                width="stretch",
+                config={"displayModeBar": False},
+                on_select="rerun",
+                selection_mode=("points",),
+                key="dep_map_select",
+            )
+
+            # "Show country average" button anchored to the bottom-left of the
+            # map column, tight against the map frame. Sets the dropdown to
+            # "All (country mean)" — the same as picking it from the sidebar.
+            btn_col, _ = st.columns([2, 5])
+            with btn_col:
+                if st.button(
+                    "🌐 Select All",
+                    key="select_all_btn",
+                    help="Switch to the country-mean view across all 14 departamentos.",
+                    width="stretch",
+                ):
+                    if st.session_state.get("dep_choice") != data.ALL:
+                        st.session_state["dep_choice"] = data.ALL
+                        # Clear any stale map-click so it doesn't override.
+                        st.session_state.pop("dep_map_select", None)
+                        st.rerun()
+
+            # Translate any click event into a dropdown change.
+            clicked_dep = None
+            if map_event is not None:
+                sel = getattr(map_event, "selection", None)
+                pts = getattr(sel, "points", None) or []
+                if pts:
+                    # Plotly choropleth_map puts the feature's `locations` value
+                    # into the "location" key of each point.
+                    clicked_dep = pts[0].get("location")
+            if (
+                clicked_dep
+                and clicked_dep in deps_available
+                and clicked_dep != departamento
+            ):
+                st.session_state["dep_choice"] = clicked_dep
+                st.rerun()
         else:
             st.info("Map unavailable — run `python -m el_nino.etl.aoi.fetch_aoi` to fetch the AOI polygons.")
     with legend_col:
@@ -200,7 +261,6 @@ with tabs[0]:
         ind_cls = INDICATORS[ind_name]
         with col:
             st.markdown(f"**{INDICATOR_LABELS[ind_name]}**")
-            st.caption(freshness.indicator_badge(ind_name, today_))
             ind_df = data.load_indicator(ind_name, departamento)
             if ind_df.empty:
                 st.info("No data.")
@@ -225,14 +285,16 @@ with tabs[0]:
                 ind_df, ind_cls.status_window_days, today_,
             )
             cat = drought_status.classify(latest_z)
-            badge_text_color = "#37474f" if cat.is_pending else "white"
             st.markdown(
-                f"<span style='background-color:{cat.color};color:{badge_text_color};"
+                f"<span style='background-color:{cat.color};color:{cat.text_color};"
                 "padding:4px 12px;border-radius:6px;font-weight:600;'>"
                 f"{cat.label}</span>",
                 unsafe_allow_html=True,
             )
-            st.caption(status_view.lag_phrase(latest_obs, today_))
+            # Below the badge: freshness colour-dot + last-observation date +
+            # lag. Replaces the previous above-chart placement and the
+            # redundant "Based on observations from N days ago" caption.
+            st.caption(freshness.indicator_badge(ind_name, today_))
 
     # Drought-alert summary — at the bottom of Overview, written for a
     # non-technical audience.
@@ -243,7 +305,6 @@ with tabs[0]:
 with tabs[1]:
     primary = indicator_cls.primary_column
     st.subheader(f"{INDICATOR_LABELS[indicator_name]} — {departamento}")
-    st.caption(freshness.indicator_badge(indicator_name, today_))
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
@@ -275,16 +336,17 @@ with tabs[1]:
         cat = drought_status.classify(latest_z)
         st.markdown("### Current status")
         c1, c2 = st.columns([1, 2])
-        badge_text_color = "#37474f" if cat.is_pending else "white"
         with c1:
             st.markdown(
-                f"<div style='background-color:{cat.color};color:{badge_text_color};"
+                f"<div style='background-color:{cat.color};color:{cat.text_color};"
                 "padding:18px;border-radius:8px;text-align:center;"
                 f"font-weight:700;font-size:1.3em;'>"
                 f"{cat.label}</div>",
                 unsafe_allow_html=True,
             )
-            st.caption(status_view.lag_phrase(latest_obs, today_))
+            # Freshness colour-dot + last-observation date + lag, consolidated
+            # under the badge instead of in a separate caption above the chart.
+            st.caption(freshness.indicator_badge(indicator_name, today_))
         with c2:
             st.write(drought_status.plain_language(latest_z))
             st.caption(cat.description)

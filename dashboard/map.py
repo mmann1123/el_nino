@@ -96,6 +96,11 @@ def departamento_status_figure(
 
     latest_anom = _latest_anom_per_departamento(indicator_name)
 
+    # Use the SAME discrete U.S. Drought Monitor tiers + colors as the badges
+    # in the dashboard panels — this is the only way the map's visual color
+    # and the panel's "Severe Drought / Exceptional Drought" labels agree.
+    # A continuous diverging colormap would surface within-tier variation
+    # but loses alignment with the legend, which surprised users.
     rows = []
     for feat in gj["features"]:
         dep = feat["properties"].get("ADM1_NAME", "")
@@ -103,37 +108,46 @@ def departamento_status_figure(
         cat = drought_status.classify(z)
         rows.append({
             "departamento": dep,
-            "z": z if (z is not None and not pd.isna(z)) else 0.0,
-            "z_display": f"{z:.2f}" if z is not None and not pd.isna(z) else "—",
             "status_label": cat.label,
+            "z_display": f"{z:+.2f}" if z is not None and not pd.isna(z) else "—",
         })
     df = pd.DataFrame(rows)
 
-    # Continuous diverging colormap on z-score, anchored at 0 so blue=wet and
-    # red=dry are symmetric. Bounded ±2.5 (USDM D3/W3 cutoff) so the gradient
-    # uses the same scale across indicators.
+    # Build the discrete color map across every tier so plotly applies the
+    # exact same hex per category as the panel badges + the legend column.
+    all_cats = [
+        drought_status.W3, drought_status.W2, drought_status.W1,
+        drought_status.NORMAL,
+        drought_status.D0, drought_status.D1, drought_status.D2,
+        drought_status.D3, drought_status.D4,
+        drought_status.PENDING,
+    ]
+    color_map = {cat.label: cat.color for cat in all_cats}
+    # Force the legend order — wet to dry — so the choropleth's internal
+    # category ordering matches the dashboard's USDM legend column.
+    category_order = [cat.label for cat in all_cats]
+
     fig = px.choropleth_map(
         df,
         geojson=gj,
         locations="departamento",
         featureidkey="properties.ADM1_NAME",
-        color="z",
-        color_continuous_scale="RdBu",  # negative red, positive blue
-        range_color=(-2.5, 2.5),
+        color="status_label",
+        color_discrete_map=color_map,
+        category_orders={"status_label": category_order},
         center=ES_CENTER,
         zoom=ES_ZOOM,
         map_style="carto-positron",
         opacity=0.78,
-        # Hover shows the human-friendly status label, not the raw z value.
         hover_data={
             "departamento": True,
             "status_label": True,
-            "z": False,
-            "z_display": False,
+            "z_display": True,
         },
         labels={
             "status_label": "Status",
             "departamento": "Departamento",
+            "z_display": "Anomaly (σ)",
         },
     )
 
@@ -160,6 +174,8 @@ def departamento_status_figure(
     fig.update_layout(
         margin=dict(l=0, r=0, t=10, b=0),
         height=360,
-        coloraxis_showscale=False,  # the discrete USDM legend on the side carries the colors
+        # No in-figure legend — the dashboard renders its own USDM legend
+        # column to the right of the map, sharing the exact same colors.
+        showlegend=False,
     )
     return fig
