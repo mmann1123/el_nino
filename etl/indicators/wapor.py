@@ -23,6 +23,8 @@ class WAPOR(Indicator):
     value_columns = ["eta_mm"]
     freshness = FreshnessSpec(fresh_days=12, aging_days=22, expected_cadence_days=10)
     has_forecast = False
+    status_window_days = 10  # one dekad — WAPOR is already a 10-day mean
+    climatology_doy_window = 30  # only 8 years of record — widen to ±30 days for stable fences
     default_chunk_months = 60  # dekadal × 14 deps is tiny; large chunks fine
 
     ASSET = "FAO/WAPOR/3/L1_AETI_D"

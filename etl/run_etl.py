@@ -192,13 +192,15 @@ def cmd_backfill(args) -> None:
 def cmd_climatology(args) -> None:
     config.ensure_dirs()
     for name, cls in INDICATORS.items():
-        print(f"Climatology for {name}...")
-        clim = climatology.compute_for_indicator(name, cls.value_columns)
+        window = getattr(cls, "climatology_doy_window", 0)
+        print(f"Climatology for {name} (DOY window: ±{window} days)...")
+        clim = climatology.compute_for_indicator(name, cls.value_columns, doy_window=window)
         if clim.empty:
             print("  (no input data)")
             continue
         climatology.save(name, clim)
-        print(f"  wrote {len(clim)} rows")
+        n_samples_med = int(clim["n_samples"].median()) if "n_samples" in clim.columns else "?"
+        print(f"  wrote {len(clim)} rows (median n_samples per fence: {n_samples_med})")
 
 
 def cmd_enso(args) -> None:

@@ -26,6 +26,60 @@ CHART_CONFIG = {
 }
 
 
+def smoothing_diagnostic_figure(
+    raw_clim: pd.DataFrame,
+    smoothed_clim: pd.DataFrame,
+    value_label: str,
+) -> go.Figure:
+    """Side-by-side per-DOY p05/p95 envelope: raw (per-DOY only) vs windowed.
+    Used in the 'How smooth is the envelope?' expander so users can see
+    exactly what the DOY window buys them.
+
+    Both inputs must have columns (doy, p05, p25, p50, p75, p95)."""
+    fig = go.Figure()
+    if raw_clim.empty or smoothed_clim.empty:
+        return fig
+
+    raw = raw_clim.sort_values("doy")
+    smo = smoothed_clim.sort_values("doy")
+    raw_doys = list(raw["doy"])
+    smo_doys = list(smo["doy"])
+
+    # Raw envelope — jagged
+    fig.add_trace(go.Scatter(
+        x=raw_doys + raw_doys[::-1],
+        y=list(raw["p95"]) + list(raw["p05"])[::-1],
+        fill="toself", fillcolor="rgba(229, 115, 115, 0.20)", line=dict(width=0),
+        name="Raw 5-95% (per-DOY only)", hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=raw_doys, y=raw["p50"],
+        line=dict(color="#c62828", width=1, dash="dot"),
+        name="Raw median", hoverinfo="skip",
+    ))
+    # Smoothed envelope — windowed
+    fig.add_trace(go.Scatter(
+        x=smo_doys + smo_doys[::-1],
+        y=list(smo["p95"]) + list(smo["p05"])[::-1],
+        fill="toself", fillcolor="rgba(120, 144, 156, 0.30)", line=dict(width=0),
+        name="Windowed 5-95%", hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=smo_doys, y=smo["p50"],
+        line=dict(color="#37474f", width=1.5),
+        name="Windowed median", hoverinfo="skip",
+    ))
+
+    fig.update_layout(
+        xaxis_title="Day of year",
+        yaxis_title=value_label,
+        height=280,
+        margin=dict(l=40, r=20, t=20, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=9)),
+    )
+    return fig
+
+
 ENVELOPE_OUTER_OBSERVED = "rgba(120, 144, 156, 0.18)"   # p05-p95 (past)
 ENVELOPE_INNER_OBSERVED = "rgba(120, 144, 156, 0.32)"   # p25-p75 (past)
 ENVELOPE_OUTER_FUTURE   = "rgba(120, 144, 156, 0.07)"   # p05-p95 (future, faded)

@@ -22,6 +22,7 @@ class CHIRPS(Indicator):
     value_columns = ["precip_pentad_mm", "spi_1", "spi_3", "spi_6"]
     freshness = FreshnessSpec(fresh_days=3, aging_days=7, expected_cadence_days=3)
     has_forecast = True
+    status_window_days = 5  # one pentad — SPI-3 is already 3-month rolling
     # Pentad aggregation keeps feature count low (14 × 73 ≈ 1022/yr), so big chunks work.
     default_chunk_months = 24
     min_chunk_months = 3

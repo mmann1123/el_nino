@@ -141,9 +141,25 @@ def fetch_window(start: date, end: date,
             })
         on_progress(f"  {d}: zonal stats OK ({len([r for r in rows if r['date']==d])} deps)")
 
+    pruned = _prune_cache(keep=3)
+    if pruned:
+        on_progress(f"  pruned {pruned} old cached tif(s); kept 3 most recent")
+
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows).sort_values(["departamento", "date"]).reset_index(drop=True)
+
+
+def _prune_cache(keep: int = 3) -> int:
+    """Delete cached TIFs beyond the `keep` most recent (by filename date).
+    Filenames embed YYYY.MM.DD so lexical sort == chronological. Returns count deleted."""
+    if not CACHE_DIR.exists():
+        return 0
+    tifs = sorted(CACHE_DIR.glob("*.tif"))
+    stale = tifs[:-keep] if keep > 0 else tifs
+    for f in stale:
+        f.unlink()
+    return len(stale)
 
 
 def clear_cache() -> int:

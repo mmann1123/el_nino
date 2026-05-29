@@ -25,6 +25,8 @@ class SMAP(Indicator):
     value_columns = ["rzsm_m3m3"]
     freshness = FreshnessSpec(fresh_days=4, aging_days=8, expected_cadence_days=3)
     has_forecast = False
+    status_window_days = 7  # average a week of daily reads — soil moisture has multi-day persistence
+    climatology_doy_window = 15  # 10 years × ~30 DOYs = ~300 samples per fence
     # 6-month chunks: ~183 daily means × 14 deps ≈ 2562 features per chunk.
     default_chunk_months = 6
     min_chunk_months = 1

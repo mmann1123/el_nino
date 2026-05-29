@@ -155,15 +155,6 @@ def banner() -> None:
         unsafe_allow_html=True,
     )
 
-    # ---- plain-language explanation ----
-    st.markdown(
-        "**What sets off this alert.** When rainfall has been **very dry for "
-        "the last 3 months** *and* **soil moisture is below normal**, all at the "
-        "same time during the maize **silking weeks** (mid-July to mid-August). "
-        "Silking is when maize is most vulnerable to drought — water stress "
-        "during this window translates directly into yield loss."
-    )
-
     # ---- current readings ----
     spi3 = _spi3_reading(trig.spi3_threshold)
     rzsm = _rzsm_reading(trig.rzsm_threshold)
@@ -182,6 +173,15 @@ def banner() -> None:
                 "</div>",
                 unsafe_allow_html=True,
             )
+
+    # ---- plain-language explanation ----
+    st.markdown(
+        "**What sets off this alert.** When rainfall has been **very dry for "
+        "the last 3 months** *and* **soil moisture is below normal**, all at the "
+        "same time during the maize **silking weeks** (mid-July to mid-August). "
+        "Silking is when maize is most vulnerable to drought — water stress "
+        "during this window translates directly into yield loss."
+    )
 
     # ---- triggered-this-year details ----
     if triggered_this_year:
@@ -214,19 +214,19 @@ def banner() -> None:
         with st.expander(f"How confident is this alert? (based on {s.n_years} years of data)"):
             st.markdown(
                 f"""
-                The thresholds for this alert were chosen by checking which
-                ones would have correctly flagged the documented El Niño
-                drought years (especially 2015) without firing in normal
-                years. With only {s.n_years} years of soil-moisture data, the
-                margin of error is still wide. Re-run the calibration
-                annually as more data accumulates.
-
                 | Metric | Estimate | 95% range |
                 |---|---:|---:|
                 | When triggered, how often there was a real drought event | {s.precision:.0%} | {s.precision_ci[0]:.0%} – {s.precision_ci[1]:.0%} |
                 | Fraction of drought years the alert catches | {s.recall:.0%} | {s.recall_ci[0]:.0%} – {s.recall_ci[1]:.0%} |
                 | Fraction of *severe* drought years caught (e.g., 2015) | {s.severe_recall:.0%} | {s.severe_recall_ci[0]:.0%} – {s.severe_recall_ci[1]:.0%} |
                 | False alarms per decade | {s.fp_per_decade:.1f} | {s.fp_per_decade_ci[0]:.1f} – {s.fp_per_decade_ci[1]:.1f} |
+
+                The thresholds for this alert were chosen by checking which
+                ones would have correctly flagged the documented El Niño
+                drought years (especially 2015) without firing in normal
+                years. With only {s.n_years} years of soil-moisture data, the
+                margin of error is still wide. Re-run the calibration
+                annually as more data accumulates.
                 """
             )
 

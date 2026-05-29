@@ -23,7 +23,7 @@ import streamlit as st  # noqa: E402
 
 from el_nino import config  # noqa: E402
 from el_nino.etl.indicators import INDICATORS  # noqa: E402
-from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view  # noqa: E402
+from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, status as status_view  # noqa: E402
 
 st.set_page_config(
     page_title="El Salvador Drought Monitor",
@@ -112,7 +112,7 @@ if not deps_available:
     st.warning("No indicator data available yet. The ETL needs to populate `data/raw/`. See sidebar.")
     st.stop()
 
-default_dep = "Morazan" if "Morazan" in deps_available else deps_available[0]
+default_dep = data.ALL if data.ALL in deps_available else deps_available[0]
 departamento = st.sidebar.selectbox(
     "Departamento", deps_available,
     index=deps_available.index(default_dep),
@@ -221,7 +221,9 @@ with tabs[0]:
             fig.update_layout(height=320, showlegend=False)
             st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
 
-            latest_z = ind_df.dropna(subset=["value_anom_z"]).iloc[-1]["value_anom_z"] if "value_anom_z" in ind_df.columns and not ind_df["value_anom_z"].dropna().empty else None
+            latest_z, latest_obs = status_view.current_status_value(
+                ind_df, ind_cls.status_window_days, today_,
+            )
             cat = drought_status.classify(latest_z)
             badge_text_color = "#37474f" if cat.is_pending else "white"
             st.markdown(
@@ -230,6 +232,7 @@ with tabs[0]:
                 f"{cat.label}</span>",
                 unsafe_allow_html=True,
             )
+            st.caption(status_view.lag_phrase(latest_obs, today_))
 
     # Drought-alert summary — at the bottom of Overview, written for a
     # non-technical audience.
@@ -263,9 +266,12 @@ with tabs[1]:
         )
         st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
 
-        # Plain-language status
-        z_series = ind_df["value_anom_z"].dropna() if "value_anom_z" in ind_df.columns else pd.Series(dtype=float)
-        latest_z = z_series.iloc[-1] if not z_series.empty else None
+        # Plain-language status — averaged over the indicator's status window
+        # of OBSERVED rows only (skips forecasts so the badge never reports a
+        # 15-day-ahead projection as the current state).
+        latest_z, latest_obs = status_view.current_status_value(
+            ind_df, indicator_cls.status_window_days, today_,
+        )
         cat = drought_status.classify(latest_z)
         st.markdown("### Current status")
         c1, c2 = st.columns([1, 2])
@@ -278,6 +284,7 @@ with tabs[1]:
                 f"{cat.label}</div>",
                 unsafe_allow_html=True,
             )
+            st.caption(status_view.lag_phrase(latest_obs, today_))
         with c2:
             st.write(drought_status.plain_language(latest_z))
             st.caption(cat.description)
@@ -286,10 +293,53 @@ with tabs[1]:
             st.write(f"Latest anomaly z-score: {latest_z:.2f}" if latest_z is not None and not pd.isna(latest_z) else "Latest anomaly z-score: —")
             st.write(f"Primary column: `{primary}`")
             st.write(f"Baseline period for {INDICATOR_LABELS[indicator_name]}: {INDICATOR_BASELINE[indicator_name]} (per-DOY percentiles)")
-        st.caption(
-            f"_Baseline for this indicator: {INDICATOR_BASELINE[indicator_name]}. "
-            f"Note: SMAP starts 2015, WAPOR starts 2018 — shorter records make percentile fences wider._"
-        )
+
+        # Climatology-smoothing caption + diagnostic mini-chart
+        window = getattr(indicator_cls, "climatology_doy_window", 0)
+        n_samples_str = ""
+        if "n_samples" in clim.columns:
+            med_n = int(clim["n_samples"].median())
+            n_samples_str = f", median {med_n} samples per percentile fence"
+        if window > 0:
+            st.caption(
+                f"_Baseline: {INDICATOR_BASELINE[indicator_name]}. "
+                f"Percentile fences smoothed over ±{window}-day window{n_samples_str} — "
+                f"pools nearby days-of-year together so short records (esp. WAPOR's ~8 years) "
+                f"produce stable envelopes._"
+            )
+        else:
+            st.caption(
+                f"_Baseline: {INDICATOR_BASELINE[indicator_name]} (per-DOY only, no smoothing)._"
+            )
+
+        with st.expander("How smooth is the envelope? (raw vs windowed)"):
+            st.markdown(
+                "With only a few years per day-of-year, the 5th and 95th "
+                "percentiles are essentially the min and max of a handful of "
+                "values — they jump around as you move through the year, "
+                "even though the underlying climate doesn't. We smooth by "
+                "pooling each day's history with nearby days-of-year. The "
+                "comparison below shows the difference."
+            )
+            try:
+                raw_clim = data.load_raw_climatology(indicator_name, departamento, primary)
+                if raw_clim.empty:
+                    st.info("Raw climatology unavailable.")
+                else:
+                    diag_fig = charts.smoothing_diagnostic_figure(
+                        raw_clim=raw_clim,
+                        smoothed_clim=clim,
+                        value_label=yaxis_label_for(primary),
+                    )
+                    st.plotly_chart(diag_fig, width="stretch", config=charts.CHART_CONFIG)
+                    st.caption(
+                        f"Indicator: **{INDICATOR_LABELS[indicator_name]}** · "
+                        f"Years: {INDICATOR_BASELINE[indicator_name]} · "
+                        f"Window: ±{window} days · "
+                        f"Raw envelope shown in red, windowed envelope in slate."
+                    )
+            except Exception as e:
+                st.warning(f"Could not load raw climatology: {e}")
 
 # ============= Tab 3 — Year Compare =============
 with tabs[2]:

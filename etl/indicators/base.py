@@ -34,6 +34,20 @@ class Indicator(ABC):
     freshness: FreshnessSpec = FreshnessSpec(fresh_days=3, aging_days=7, expected_cadence_days=3)
     has_forecast: bool = False
 
+    # How many days of recent OBSERVED data the dashboard's "Current status"
+    # badge should average over before classifying. Per-indicator because:
+    #   CHIRPS SPI-3 is already a 3-month rolling index → 5d window (1 pentad)
+    #   SMAP RZSM is daily and noisy → 7d window
+    #   WAPOR is dekadal (10-day means) → 10d window
+    #   IMERG is daily and very noisy → 7d window
+    status_window_days: int = 7
+
+    # Per-DOY climatology smoothing — the half-width of the day-of-year window
+    # used when computing percentile fences. With n_years × (2*W + 1)/cadence
+    # samples per fence, short-record indicators (WAPOR: 8 years) need a wider
+    # window than long-record ones (CHIRPS: 45 years). 0 disables smoothing.
+    climatology_doy_window: int = 15
+
     # GEE returns up to ~5000 features per getInfo(). Chunk sizes below keep
     # each interactive call under that ceiling for 14 departamentos:
     #   CHIRPS pentad: 14 × 73 ≈ 1022/yr → safe at 12 months
