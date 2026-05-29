@@ -1,6 +1,10 @@
 """DuckDB-backed read layer for the dashboard. Reads parquet files directly
 (DuckDB can query parquet without ingesting). One thread-safe connection per
 process, cached via @st.cache_resource.
+
+`ALL` is a sentinel for the "All departamentos — country mean" view: the
+load_indicator / load_climatology functions average across every per-dep
+parquet by date / DOY respectively.
 """
 
 from __future__ import annotations
@@ -9,12 +13,15 @@ from datetime import date
 from pathlib import Path
 
 import duckdb
+import numpy as np
 import pandas as pd
 import streamlit as st
 
 from .. import config
 from ..etl import climatology, enso
 from ..etl.indicators import INDICATORS
+
+ALL = "All (country mean)"
 
 
 @st.cache_resource
@@ -36,11 +43,13 @@ def list_departamentos() -> list[str]:
                     deps.update(df["departamento"].dropna().unique().tolist())
             except Exception:
                 continue
-    return sorted(deps)
+    return [ALL] + sorted(deps)
 
 
 @st.cache_data(ttl=3600)
 def load_indicator(indicator: str, departamento: str) -> pd.DataFrame:
+    if departamento == ALL:
+        return _load_indicator_all(indicator)
     safe_dep = _safe(departamento)
     path = config.RAW_DIR / indicator / f"{safe_dep}.parquet"
     if not path.exists():
@@ -54,11 +63,58 @@ def load_indicator(indicator: str, departamento: str) -> pd.DataFrame:
     return df.sort_values("date").reset_index(drop=True)
 
 
+def _load_indicator_all(indicator: str) -> pd.DataFrame:
+    """Country mean: pool every per-departamento parquet and average numeric
+    columns by date. Preserves is_forecast (any row marked is_forecast on any
+    departamento for that date stays True) and departamento label = ALL."""
+    d = config.RAW_DIR / indicator
+    if not d.exists():
+        return pd.DataFrame()
+    frames = []
+    for f in d.glob("*.parquet"):
+        try:
+            df = pd.read_parquet(f)
+        except Exception:
+            continue
+        if not df.empty:
+            frames.append(df)
+    if not frames:
+        return pd.DataFrame()
+    pooled = pd.concat(frames, ignore_index=True)
+    pooled["date"] = pd.to_datetime(pooled["date"])
+    numeric_cols = [c for c in pooled.columns
+                    if c not in ("date", "departamento", "is_forecast")
+                    and pd.api.types.is_numeric_dtype(pooled[c])]
+    agg_spec = {c: "mean" for c in numeric_cols}
+    if "is_forecast" in pooled.columns:
+        # Any row marked is_forecast → keep as forecast in the aggregate.
+        agg_spec["is_forecast"] = "any"
+    out = pooled.groupby("date", as_index=False).agg(agg_spec)
+    out["departamento"] = ALL
+    out["year"] = out["date"].dt.year
+    out["doy"] = out["date"].dt.dayofyear
+    return out.sort_values("date").reset_index(drop=True)
+
+
 @st.cache_data(ttl=3600)
 def load_climatology(indicator: str, departamento: str, value_column: str) -> pd.DataFrame:
     clim = climatology.load(indicator)
     if clim.empty:
         return clim
+    if departamento == ALL:
+        # Average per-departamento percentile fences by DOY. Simple mean across
+        # the 14 dep-specific climatologies — gives a country-mean envelope.
+        sub = clim[clim["value_column"] == value_column]
+        if sub.empty:
+            return sub
+        agg = sub.groupby("doy", as_index=False).agg({
+            "mu": "mean", "sigma": "mean",
+            "p05": "mean", "p10": "mean", "p25": "mean",
+            "p50": "mean", "p75": "mean", "p90": "mean", "p95": "mean",
+        })
+        agg["departamento"] = ALL
+        agg["value_column"] = value_column
+        return agg.sort_values("doy").reset_index(drop=True)
     out = clim[(clim["departamento"] == departamento) & (clim["value_column"] == value_column)]
     return out.sort_values("doy").reset_index(drop=True)
 

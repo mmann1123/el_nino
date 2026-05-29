@@ -116,7 +116,11 @@ default_dep = "Morazan" if "Morazan" in deps_available else deps_available[0]
 departamento = st.sidebar.selectbox(
     "Departamento", deps_available,
     index=deps_available.index(default_dep),
-    help="Pick an El Salvador departamento. Eastern Dry Corridor: Morazán, San Miguel, La Unión, Usulután.",
+    help=(
+        "Pick an El Salvador departamento, or 'All (country mean)' for a "
+        "nationwide average. Eastern Dry Corridor focus: Morazán, San Miguel, "
+        "La Unión, Usulután."
+    ),
 )
 
 indicator_name = st.sidebar.selectbox(
@@ -160,9 +164,6 @@ tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
 with tabs[0]:
     st.subheader(f"Overview — {departamento}")
     st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
-
-    # Calibrated drought-trigger alert banner
-    alerts.banner()
 
     # Country-wide status mini-map
     map_col, legend_col = st.columns([3, 1])
@@ -218,7 +219,7 @@ with tabs[0]:
                 last_observation=freshness.last_observation_date(ind_name),
             )
             fig.update_layout(height=320, showlegend=False)
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
 
             latest_z = ind_df.dropna(subset=["value_anom_z"]).iloc[-1]["value_anom_z"] if "value_anom_z" in ind_df.columns and not ind_df["value_anom_z"].dropna().empty else None
             cat = drought_status.classify(latest_z)
@@ -229,6 +230,11 @@ with tabs[0]:
                 f"{cat.label}</span>",
                 unsafe_allow_html=True,
             )
+
+    # Drought-alert summary — at the bottom of Overview, written for a
+    # non-technical audience.
+    st.divider()
+    alerts.banner()
 
 # ============= Tab 2 — Indicator Detail =============
 with tabs[1]:
@@ -255,7 +261,7 @@ with tabs[1]:
             today_=today_,
             last_observation=freshness.last_observation_date(indicator_name),
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
 
         # Plain-language status
         z_series = ind_df["value_anom_z"].dropna() if "value_anom_z" in ind_df.columns else pd.Series(dtype=float)
@@ -315,7 +321,18 @@ with tabs[2]:
             "[el_nino_agricultural_risks.md](https://github.com/) historical record."
         )
 
-        default_years = st.session_state.get("selected_years", [y for y in [2015, 2023] if y in available_years])
+        # Filter the session-state selection against the currently-available
+        # years — when the user switches indicators (e.g., CHIRPS → WAPOR)
+        # the prior selection may include years that aren't in the new
+        # indicator's history (WAPOR starts 2018, so 2015 from CHIRPS isn't
+        # valid). Keep the multiselect's default in sync with the options.
+        raw_default = st.session_state.get(
+            "selected_years",
+            [y for y in [2015, 2023] if y in available_years],
+        )
+        default_years = [y for y in raw_default if y in available_years]
+        if default_years != raw_default:
+            st.session_state["selected_years"] = default_years
         selected = st.multiselect(
             "Years to overlay on the current year",
             options=available_years,
@@ -343,7 +360,7 @@ with tabs[2]:
             last_observation=freshness.last_observation_date(indicator_name),
         )
         fig.update_layout(height=520)
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
 
 # ---------- About this data ----------
 with st.expander("About this data"):

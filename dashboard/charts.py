@@ -12,6 +12,20 @@ from datetime import date, datetime
 import pandas as pd
 import plotly.graph_objects as go
 
+# Shared Plotly modebar config used by every chart. Strips the default ~8-button
+# toolbar down to just download (camera) — pan/zoom/reset are still available
+# via direct gestures (drag-to-pan, double-click reset).
+CHART_CONFIG = {
+    "displaylogo": False,
+    "modeBarButtonsToRemove": [
+        "zoom2d", "pan2d", "select2d", "lasso2d", "zoomIn2d",
+        "zoomOut2d", "autoScale2d", "resetScale2d",
+        "hoverClosestCartesian", "hoverCompareCartesian", "toggleSpikelines",
+    ],
+    "displayModeBar": "hover",  # only appears on hover, hidden by default
+}
+
+
 ENVELOPE_OUTER_OBSERVED = "rgba(120, 144, 156, 0.18)"   # p05-p95 (past)
 ENVELOPE_INNER_OBSERVED = "rgba(120, 144, 156, 0.32)"   # p25-p75 (past)
 ENVELOPE_OUTER_FUTURE   = "rgba(120, 144, 156, 0.07)"   # p05-p95 (future, faded)
@@ -150,18 +164,20 @@ def climatology_envelope_figure(
             ))
 
     # Today marker. Plotly needs a millisecond timestamp for datetime axes.
+    # Pin the annotation to the bottom of the plotting area so it doesn't
+    # collide with the modebar at the top of the chart.
     today_ts = pd.Timestamp(today_).timestamp() * 1000
     fig.add_vline(
         x=today_ts,
         line=dict(color="#37474f", width=1, dash="dot"),
-        annotation_text=f"Today · {today_.isoformat()}",
-        annotation_position="top left",
         annotation=dict(
-            yref="paper", y=0.97, xref="x", x=today_ts,
-            xanchor="right", yanchor="top",
-            bgcolor="rgba(255,255,255,0.85)",
+            text=f"Today · {today_.isoformat()}",
+            yref="paper", y=0.03, xref="x", x=today_ts,
+            xanchor="left", yanchor="bottom",
+            bgcolor="rgba(255,255,255,0.88)",
             bordercolor="#37474f", borderwidth=1, borderpad=3,
             font=dict(size=10, color="#263238"),
+            showarrow=False,
         ),
     )
 

@@ -124,16 +124,16 @@ def departamento_status_figure(
         zoom=ES_ZOOM,
         map_style="carto-positron",
         opacity=0.78,
+        # Hover shows the human-friendly status label, not the raw z value.
         hover_data={
             "departamento": True,
             "status_label": True,
-            "z_display": True,
             "z": False,
+            "z_display": False,
         },
         labels={
-            "z": "Anomaly (σ)",
-            "status_label": "Drought status",
-            "z_display": "Anomaly z-score",
+            "status_label": "Status",
+            "departamento": "Departamento",
         },
     )
 
@@ -160,13 +160,6 @@ def departamento_status_figure(
     fig.update_layout(
         margin=dict(l=0, r=0, t=10, b=0),
         height=360,
-        coloraxis_colorbar=dict(
-            title="Anomaly (σ)",
-            thickness=10, len=0.7,
-            tickvals=[-2.5, -1.5, -1, 0, 1, 1.5, 2.5],
-            ticktext=["−2.5", "−1.5", "−1", "0", "+1", "+1.5", "+2.5"],
-            ticks="outside",
-            tickfont=dict(size=10),
-        ),
+        coloraxis_showscale=False,  # the discrete USDM legend on the side carries the colors
     )
     return fig
