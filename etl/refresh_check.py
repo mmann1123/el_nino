@@ -50,18 +50,26 @@ def _asset_latest(indicator_name: str) -> date | None:
 
 
 def _local_latest(indicator_name: str) -> date | None:
+    """Latest *observed* (non-forecast) date across all per-dep parquets."""
     d = config.RAW_DIR / indicator_name
     if not d.exists():
         return None
     latest: date | None = None
     for f in d.glob("*.parquet"):
         try:
-            df = pd.read_parquet(f, columns=["date"])
+            df = pd.read_parquet(f, columns=["date", "is_forecast"])
         except Exception:
-            continue
+            try:
+                df = pd.read_parquet(f, columns=["date"])
+                df["is_forecast"] = False
+            except Exception:
+                continue
         if df.empty:
             continue
-        d_max = pd.to_datetime(df["date"]).max().date()
+        observed = df[~df["is_forecast"].fillna(False)]
+        if observed.empty:
+            continue
+        d_max = pd.to_datetime(observed["date"]).max().date()
         if latest is None or d_max > latest:
             latest = d_max
     return latest

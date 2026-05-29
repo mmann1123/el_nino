@@ -53,65 +53,63 @@ def freshness_strip(today_: date) -> None:
 def indicator_badge(indicator: str, today_: date) -> str:
     """Compact lag indicator next to a chart title.
 
-    Reads freshness.json when present; otherwise reads the parquet directly to
-    report a last-observation lag even before `finalize` has run.
+    Always reads the parquet for the last-observation date so the badge stays
+    accurate after prelim/forecast/fetch runs even if freshness.json wasn't
+    refreshed. Cached so this is cheap on every page render.
     """
-    records = freshness_io.read_all()
-    rec = records.get(indicator)
+    last_obs = _last_obs_from_parquet(indicator)
+    if last_obs is None:
+        emoji, _ = BADGE_COLOR["no_data"]
+        return f"{emoji} No observations yet"
 
-    last_obs: date | None = None
-    status: str = "no_data"
-
-    if rec:
-        status = rec.get("status", "no_data")
-        last_obs_str = rec.get("last_observation_date")
-        if last_obs_str:
-            last_obs = date.fromisoformat(last_obs_str)
+    ind_cls = INDICATORS.get(indicator)
+    if ind_cls is None:
+        status = "no_data"
     else:
-        # Fallback: read the parquets directly.
-        last_obs = _last_obs_from_parquet(indicator)
-        if last_obs is not None:
-            ind_cls = INDICATORS.get(indicator)
-            if ind_cls:
-                lag = (today_ - last_obs).days
-                if lag <= ind_cls.freshness.fresh_days:
-                    status = "fresh"
-                elif lag <= ind_cls.freshness.aging_days:
-                    status = "aging"
-                else:
-                    status = "stale"
+        lag = (today_ - last_obs).days
+        if lag <= ind_cls.freshness.fresh_days:
+            status = "fresh"
+        elif lag <= ind_cls.freshness.aging_days:
+            status = "aging"
+        else:
+            status = "stale"
 
     emoji, _ = BADGE_COLOR.get(status, BADGE_COLOR["no_data"])
-    if last_obs is None:
-        return f"{emoji} No observations yet"
     lag = (today_ - last_obs).days
     suffix = "today" if lag == 0 else f"{lag} day{'s' if lag != 1 else ''} ago"
     return f"{emoji} Last observation: {last_obs} ({suffix})"
 
 
 def last_observation_date(indicator: str) -> date | None:
-    records = freshness_io.read_all()
-    rec = records.get(indicator)
-    if rec and rec.get("last_observation_date"):
-        return date.fromisoformat(rec["last_observation_date"])
-    # Fallback to parquet-derived
+    """Latest OBSERVED (non-forecast) date for this indicator. Always reads
+    from the parquet so the value stays in sync after prelim/forecast/fetch
+    runs that may not have rewritten freshness.json."""
     return _last_obs_from_parquet(indicator)
 
 
 @st.cache_data(ttl=300)
 def _last_obs_from_parquet(indicator: str) -> date | None:
+    """Latest non-forecast date across all departamento parquets."""
     d = config.RAW_DIR / indicator
     if not d.exists():
         return None
     latest: date | None = None
     for f in d.glob("*.parquet"):
         try:
-            df = pd.read_parquet(f, columns=["date"])
+            # Try to read is_forecast for filtering; older parquets may not have it.
+            try:
+                df = pd.read_parquet(f, columns=["date", "is_forecast"])
+            except Exception:
+                df = pd.read_parquet(f, columns=["date"])
+                df["is_forecast"] = False
         except Exception:
             continue
         if df.empty:
             continue
-        d_max = pd.to_datetime(df["date"]).max().date()
+        observed = df[~df["is_forecast"].fillna(False)]
+        if observed.empty:
+            continue
+        d_max = pd.to_datetime(observed["date"]).max().date()
         if latest is None or d_max > latest:
             latest = d_max
     return latest

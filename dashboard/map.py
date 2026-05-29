@@ -54,11 +54,36 @@ def _latest_anom_per_departamento(indicator_name: str) -> dict[str, float | None
 
 
 def _load_geojson() -> dict | None:
+    """Load the AOI GeoJSON and normalize any GeometryCollection to a
+    Polygon/MultiPolygon. FAO GAUL ships at least one El Salvador feature
+    (San Miguel) as a GeometryCollection mixing a stray LineString with the
+    actual Polygon; Plotly's choropleth_map silently drops such features."""
     p = Path(config.AOI_PATH)
     if not p.exists():
         return None
     with p.open() as f:
-        return json.load(f)
+        gj = json.load(f)
+
+    for feat in gj.get("features", []):
+        geom = feat.get("geometry") or {}
+        if geom.get("type") != "GeometryCollection":
+            continue
+        polys = [g for g in geom.get("geometries", [])
+                 if g.get("type") in ("Polygon", "MultiPolygon")]
+        if not polys:
+            continue
+        if len(polys) == 1 and polys[0]["type"] == "Polygon":
+            feat["geometry"] = polys[0]
+        else:
+            # Flatten any MultiPolygons too, into one MultiPolygon
+            coords = []
+            for g in polys:
+                if g["type"] == "Polygon":
+                    coords.append(g["coordinates"])
+                else:
+                    coords.extend(g["coordinates"])
+            feat["geometry"] = {"type": "MultiPolygon", "coordinates": coords}
+    return gj
 
 
 def departamento_status_figure(

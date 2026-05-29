@@ -70,10 +70,11 @@ def cmd_fetch(args) -> None:
     if df.empty:
         print("  (no rows returned)")
         return
-    from . import storage
+    from . import refresh_check, storage
     for dep, group in df.groupby("departamento"):
         storage.upsert_raw(args.indicator, dep, group.copy())
     print(f"  wrote {len(df)} rows across {df['departamento'].nunique()} departamentos")
+    refresh_check._update_freshness()
 
 
 def cmd_prelim(args) -> None:
@@ -131,6 +132,8 @@ def cmd_prelim(args) -> None:
 
     print("Recomputing SPI across observed + forecast...")
     recompute_spi_for_all_parquets()
+    from . import refresh_check
+    refresh_check._update_freshness()
     print("Done.")
 
 
@@ -152,6 +155,8 @@ def cmd_forecast(args) -> None:
     print(f"  wrote {len(df)} forecast pentads across {df['departamento'].nunique()} departamentos")
     print("Recomputing SPI across observed + forecast...")
     recompute_spi_for_all_parquets()
+    from . import refresh_check
+    refresh_check._update_freshness()
     print("Done.")
 
 
