@@ -155,8 +155,8 @@ if reload_clicked:
     if reload_clicked:
         st.rerun()
 
-# ---------- Freshness strip ----------
-freshness.freshness_strip(today_)
+# Refresh timestamps directly under the "Check for new data" button.
+freshness.sidebar_refresh_caption()
 
 tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
 

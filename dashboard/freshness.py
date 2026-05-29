@@ -19,11 +19,11 @@ BADGE_COLOR = {
 }
 
 
-def freshness_strip(today_: date) -> None:
-    """Always renders the Today metric; fills the rest from freshness.json if
-    present, otherwise from per-indicator parquet tails as a fallback."""
+def sidebar_refresh_caption() -> None:
+    """Render 'Data refreshed' and 'Next refresh' as small captions under the
+    sidebar's 'Check for new data' button. Replaces the old big metric strip
+    at the top of the page."""
     records = freshness_io.read_all()
-
     if records:
         refreshed_at = max(
             (r.get("last_refresh_at", "") for r in records.values()),
@@ -38,15 +38,15 @@ def freshness_strip(today_: date) -> None:
         refreshed_human = "—"
         next_refresh = "—"
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Today", today_.isoformat())
-    c2.metric("Data refreshed", refreshed_human)
-    c3.metric("Next refresh", next_refresh or "—")
+    st.sidebar.caption(
+        f"Data refreshed: **{refreshed_human}**  \n"
+        f"Next refresh: **{next_refresh or '—'}**"
+    )
 
     if not records:
-        st.caption(
-            "Freshness summary not yet computed. Run "
-            "`python -m el_nino.etl.run_etl finalize` once backfills complete."
+        st.sidebar.caption(
+            "_Freshness summary not yet computed. Run "
+            "`python -m el_nino.etl.run_etl finalize` once backfills complete._"
         )
 
 
