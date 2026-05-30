@@ -22,16 +22,41 @@ from ... import config
 
 @dataclass
 class FreshnessSpec:
+    """Lag thresholds for dashboard freshness badges.
+
+    Indicators have wildly different cadences (IMERG daily vs WAPOR dekadal),
+    so a flat "fresh ≤ 7 days" rule would mean different things across them.
+    Instead derive thresholds from the expected cadence so a 🟢/🟡/🔴 badge
+    means the same thing everywhere:
+
+        fresh  : lag ≤ 1.5 × cadence  (current cycle arrived on time)
+        aging  : lag ≤ 3   × cadence  (one cycle missed)
+        stale  : lag >  3   × cadence  (multiple cycles missed)
+
+    Use ``FreshnessSpec.from_cadence(n)`` instead of constructing the fields
+    directly so the rule stays uniform across indicators.
+    """
     fresh_days: int        # green up to this lag
     aging_days: int        # yellow up to this lag; red beyond
     expected_cadence_days: int
+
+    @classmethod
+    def from_cadence(cls, cadence_days: int) -> "FreshnessSpec":
+        # ceil() rounding: a cadence-3 indicator should still be "fresh" at
+        # day 4 (1.33× cadence) and "aging" at day 9 (3× cadence).
+        from math import ceil
+        return cls(
+            fresh_days=ceil(1.5 * cadence_days),
+            aging_days=3 * cadence_days,
+            expected_cadence_days=cadence_days,
+        )
 
 
 class Indicator(ABC):
     name: str = ""
     value_columns: list[str] = []       # which numeric columns the climatology applies to
     primary_column: str = "value"        # column shown in the dashboard as the "main" series
-    freshness: FreshnessSpec = FreshnessSpec(fresh_days=3, aging_days=7, expected_cadence_days=3)
+    freshness: FreshnessSpec = FreshnessSpec.from_cadence(3)
     has_forecast: bool = False
 
     # How many days of recent OBSERVED data the dashboard's "Current status"

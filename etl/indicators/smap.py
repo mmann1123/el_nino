@@ -23,7 +23,7 @@ class SMAP(Indicator):
     name = "smap"
     primary_column = "rzsm_m3m3"
     value_columns = ["rzsm_m3m3"]
-    freshness = FreshnessSpec(fresh_days=4, aging_days=8, expected_cadence_days=3)
+    freshness = FreshnessSpec.from_cadence(3)
     has_forecast = False
     status_window_days = 7  # average a week of daily reads — soil moisture has multi-day persistence
     climatology_doy_window = 15  # 10 years × ~30 DOYs = ~300 samples per fence

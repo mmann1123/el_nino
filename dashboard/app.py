@@ -22,6 +22,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from el_nino import config  # noqa: E402
+from el_nino.etl import enso  # noqa: E402
 from el_nino.etl.indicators import INDICATORS  # noqa: E402
 from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, status as status_view  # noqa: E402
 
@@ -90,11 +91,11 @@ def yaxis_label_for(col: str) -> str:
     return YAXIS_LABELS.get(col, col)
 
 
-# Historically significant El Niño analog years for El Salvador maize, drawn
-# from el_nino_agricultural_risks.md. Keeps the Year Compare overlay readable
-# instead of throwing 18+ years at the chart.
-NOTABLE_EL_NINO_YEARS = [1997, 2002, 2009, 2015, 2018, 2023]
-NOTABLE_LA_NINA_YEARS = [1988, 1999, 2007, 2010, 2020]
+# Canonical notable analog years are defined in el_nino/etl/enso.py — kept
+# centralized so the Year Compare overlay, caption text, and About-this-data
+# panel stay in sync.
+NOTABLE_EL_NINO_YEARS = enso.NOTABLE_EL_NINO_YEARS
+NOTABLE_LA_NINA_YEARS = enso.NOTABLE_LA_NINA_YEARS
 
 today_ = config.today()
 
@@ -461,9 +462,11 @@ with tabs[2]:
         if c3.button("Clear"):
             st.session_state["selected_years"] = []
         st.caption(
-            "El Niño analogs (1997-98, 2009-10, 2015-16, 2018-19, 2023-24) and "
-            "La Niña analogs are pre-selected from "
-            "[el_nino_agricultural_risks.md](https://github.com/) historical record."
+            "El Niño analogs (1982-83, 1997-98, 2015-16, 2023-24 — the strong / "
+            "very-strong events) and La Niña analogs (1988-89, 1998-2001, 2007-08, "
+            "2010-12, 2020-23) per NOAA ONI. "
+            "Years outside an indicator's record (SMAP from 2015, WAPOR from 2018) "
+            "are silently dropped."
         )
 
         # Filter the session-state selection against the currently-available
@@ -473,7 +476,7 @@ with tabs[2]:
         # valid). Keep the multiselect's default in sync with the options.
         raw_default = st.session_state.get(
             "selected_years",
-            [y for y in [2015, 2023] if y in available_years],
+            [y for y in NOTABLE_EL_NINO_YEARS if y in available_years],
         )
         default_years = [y for y in raw_default if y in available_years]
         if default_years != raw_default:
@@ -523,6 +526,6 @@ with st.expander("About this data"):
     (D0 ≤ −1.0, D1 ≤ −1.3, D2 ≤ −1.6, D3 ≤ −2.0, D4 ≤ −2.5).
 
     Alert thresholds are pending calibration against historical crop-loss events
-    (1997-98, 2015-16, 2023-24) before being turned on — see
+    (1982-83, 1997-98, 2015-16, 2023-24) before being turned on — see
     `el_nino/experiments/trigger_calibration.ipynb`.
     """)

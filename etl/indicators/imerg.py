@@ -18,7 +18,7 @@ class IMERG(Indicator):
     name = "imerg"
     primary_column = "imerg_precip_mm"
     value_columns = ["imerg_precip_mm"]
-    freshness = FreshnessSpec(fresh_days=2, aging_days=4, expected_cadence_days=1)
+    freshness = FreshnessSpec.from_cadence(1)
     has_forecast = False
     status_window_days = 7  # daily IMERG is very noisy; average a week
     default_chunk_months = 6  # daily × 14 deps → keep getInfo() feature count under ~5000

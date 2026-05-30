@@ -21,7 +21,7 @@ class WAPOR(Indicator):
     name = "wapor"
     primary_column = "eta_mm"
     value_columns = ["eta_mm"]
-    freshness = FreshnessSpec(fresh_days=12, aging_days=22, expected_cadence_days=10)
+    freshness = FreshnessSpec.from_cadence(10)
     has_forecast = False
     status_window_days = 10  # one dekad — WAPOR is already a 10-day mean
     climatology_doy_window = 30  # only 8 years of record — widen to ±30 days for stable fences

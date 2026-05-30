@@ -56,6 +56,11 @@ def indicator_badge(indicator: str, today_: date) -> str:
     Always reads the parquet for the last-observation date so the badge stays
     accurate after prelim/forecast/fetch runs even if freshness.json wasn't
     refreshed. Cached so this is cheap on every page render.
+
+    Color rule is uniform across indicators (set in ``FreshnessSpec.from_cadence``):
+    🟢 within 1.5× cadence · 🟡 within 3× cadence · 🔴 beyond 3× cadence.
+    Two badges showing the same lag can therefore land on different colors
+    when their cadences differ (e.g., IMERG is daily; WAPOR is dekadal).
     """
     last_obs = _last_obs_from_parquet(indicator)
     if last_obs is None:
@@ -65,6 +70,7 @@ def indicator_badge(indicator: str, today_: date) -> str:
     ind_cls = INDICATORS.get(indicator)
     if ind_cls is None:
         status = "no_data"
+        cadence = None
     else:
         lag = (today_ - last_obs).days
         if lag <= ind_cls.freshness.fresh_days:
@@ -73,11 +79,13 @@ def indicator_badge(indicator: str, today_: date) -> str:
             status = "aging"
         else:
             status = "stale"
+        cadence = ind_cls.freshness.expected_cadence_days
 
     emoji, _ = BADGE_COLOR.get(status, BADGE_COLOR["no_data"])
     lag = (today_ - last_obs).days
     suffix = "today" if lag == 0 else f"{lag} day{'s' if lag != 1 else ''} ago"
-    return f"{emoji} Last observation: {last_obs} ({suffix})"
+    cadence_note = f", refreshes every {cadence}d" if cadence else ""
+    return f"{emoji} Last observation: {last_obs} ({suffix}{cadence_note})"
 
 
 def last_observation_date(indicator: str) -> date | None:

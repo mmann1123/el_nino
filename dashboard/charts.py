@@ -111,74 +111,81 @@ def climatology_envelope_figure(
 
     if not climatology.empty:
         clim = climatology.sort_values("doy").reset_index(drop=True)
-        p05 = list(clim["p05"]); p25 = list(clim["p25"])
-        p50 = list(clim["p50"])
-        p75 = list(clim["p75"]); p95 = list(clim["p95"])
+        doys = [int(d) for d in clim["doy"]]
+        p05_yr = list(clim["p05"]); p25_yr = list(clim["p25"])
+        p50_yr = list(clim["p50"])
+        p75_yr = list(clim["p75"]); p95_yr = list(clim["p95"])
 
-        # The current-year data window typically extends 12 months back to ~2
-        # weeks forward, spanning two calendar years. Anchor climatology to
-        # last year and this year so the envelope covers the full visible
-        # x-axis regardless of which year boundary we straddle.
-        anchor_years = [today_.year - 1, today_.year]
-        first_legend = True
+        # Build one continuous series spanning last/this/next year by stitching
+        # the per-DOY climatology onto consecutive calendar anchors. Plotting
+        # the whole strip as a single trace per band avoids the year-boundary
+        # white gap that appeared when each year was drawn separately.
+        anchor_years = [today_.year - 1, today_.year, today_.year + 1]
+        all_dates: list[datetime] = []
+        p05: list[float] = []; p25: list[float] = []
+        p50: list[float] = []
+        p75: list[float] = []; p95: list[float] = []
+        for year in anchor_years:
+            all_dates.extend(
+                datetime(year, 1, 1) + pd.Timedelta(days=d - 1) for d in doys
+            )
+            p05.extend(p05_yr); p25.extend(p25_yr); p50.extend(p50_yr)
+            p75.extend(p75_yr); p95.extend(p95_yr)
 
-        for yr_idx, year in enumerate(anchor_years):
-            clim_dates = [
-                datetime(year, 1, 1) + pd.Timedelta(days=int(d) - 1)
-                for d in clim["doy"]
-            ]
-            # Split observed (past, up to today) vs future for fading.
-            observed_mask = [d.date() <= today_ for d in clim_dates]
-            idx_split = sum(observed_mask)
-            past_dates = clim_dates[:idx_split]
-            future_dates = clim_dates[idx_split:]
+        # Split observed (past, up to today) vs future once over the full strip.
+        # Overlap one sample so the past and future fills meet at "today" with
+        # no visible seam.
+        idx_split = sum(1 for d in all_dates if d.date() <= today_)
+        past_slice = slice(0, idx_split + 1 if idx_split < len(all_dates) else idx_split)
+        future_slice = slice(max(idx_split - 1, 0), len(all_dates))
+        past_dates = all_dates[past_slice]
+        future_dates = all_dates[future_slice]
 
-            # PAST (full opacity)
-            if past_dates:
-                fig.add_trace(go.Scatter(
-                    x=past_dates + past_dates[::-1],
-                    y=p95[:idx_split] + p05[:idx_split][::-1],
-                    fill="toself", fillcolor=ENVELOPE_OUTER_OBSERVED, line=dict(width=0),
-                    name="Typical range (5th–95th pct)" if first_legend else None,
-                    hoverinfo="skip", showlegend=first_legend,
-                    legendgroup="env_outer",
-                ))
-                fig.add_trace(go.Scatter(
-                    x=past_dates + past_dates[::-1],
-                    y=p75[:idx_split] + p25[:idx_split][::-1],
-                    fill="toself", fillcolor=ENVELOPE_INNER_OBSERVED, line=dict(width=0),
-                    name="Most common range (25th–75th pct)" if first_legend else None,
-                    hoverinfo="skip", showlegend=first_legend,
-                    legendgroup="env_inner",
-                ))
-                fig.add_trace(go.Scatter(
-                    x=past_dates, y=p50[:idx_split],
-                    line=dict(color=ENVELOPE_MEDIAN_OBSERVED, width=1, dash="dot"),
-                    name="Median (typical)" if first_legend else None,
-                    hoverinfo="skip", showlegend=first_legend,
-                    legendgroup="env_median",
-                ))
-                first_legend = False
+        # PAST (full opacity)
+        if past_dates:
+            fig.add_trace(go.Scatter(
+                x=past_dates + past_dates[::-1],
+                y=p95[past_slice] + p05[past_slice][::-1],
+                fill="toself", fillcolor=ENVELOPE_OUTER_OBSERVED, line=dict(width=0),
+                name="Typical range (5th–95th pct)",
+                hoverinfo="skip", showlegend=True,
+                legendgroup="env_outer",
+            ))
+            fig.add_trace(go.Scatter(
+                x=past_dates + past_dates[::-1],
+                y=p75[past_slice] + p25[past_slice][::-1],
+                fill="toself", fillcolor=ENVELOPE_INNER_OBSERVED, line=dict(width=0),
+                name="Most common range (25th–75th pct)",
+                hoverinfo="skip", showlegend=True,
+                legendgroup="env_inner",
+            ))
+            fig.add_trace(go.Scatter(
+                x=past_dates, y=p50[past_slice],
+                line=dict(color=ENVELOPE_MEDIAN_OBSERVED, width=1, dash="dot"),
+                name="Median (typical)",
+                hoverinfo="skip", showlegend=True,
+                legendgroup="env_median",
+            ))
 
-            # FUTURE (faded — "expected typical range")
-            if future_dates:
-                fig.add_trace(go.Scatter(
-                    x=future_dates + future_dates[::-1],
-                    y=p95[idx_split:] + p05[idx_split:][::-1],
-                    fill="toself", fillcolor=ENVELOPE_OUTER_FUTURE, line=dict(width=0),
-                    hoverinfo="skip", showlegend=False,
-                ))
-                fig.add_trace(go.Scatter(
-                    x=future_dates + future_dates[::-1],
-                    y=p75[idx_split:] + p25[idx_split:][::-1],
-                    fill="toself", fillcolor=ENVELOPE_INNER_FUTURE, line=dict(width=0),
-                    hoverinfo="skip", showlegend=False,
-                ))
-                fig.add_trace(go.Scatter(
-                    x=future_dates, y=p50[idx_split:],
-                    line=dict(color=ENVELOPE_MEDIAN_FUTURE, width=1, dash="dot"),
-                    hoverinfo="skip", showlegend=False,
-                ))
+        # FUTURE (faded — "expected typical range")
+        if future_dates:
+            fig.add_trace(go.Scatter(
+                x=future_dates + future_dates[::-1],
+                y=p95[future_slice] + p05[future_slice][::-1],
+                fill="toself", fillcolor=ENVELOPE_OUTER_FUTURE, line=dict(width=0),
+                hoverinfo="skip", showlegend=False,
+            ))
+            fig.add_trace(go.Scatter(
+                x=future_dates + future_dates[::-1],
+                y=p75[future_slice] + p25[future_slice][::-1],
+                fill="toself", fillcolor=ENVELOPE_INNER_FUTURE, line=dict(width=0),
+                hoverinfo="skip", showlegend=False,
+            ))
+            fig.add_trace(go.Scatter(
+                x=future_dates, y=p50[future_slice],
+                line=dict(color=ENVELOPE_MEDIAN_FUTURE, width=1, dash="dot"),
+                hoverinfo="skip", showlegend=False,
+            ))
 
     if analogs:
         for i, (yr, df) in enumerate(sorted(analogs.items())):
@@ -187,16 +194,21 @@ def climatology_envelope_figure(
             if d.empty:
                 continue
             d["date"] = pd.to_datetime(d["date"])
-            # Re-anchor to the current calendar year so the analog overlays
-            # on the climatology x-axis.
-            year = today_.year
-            d["date"] = d["date"].apply(
-                lambda ts, yr=year: ts.replace(year=yr) if (ts.month, ts.day) != (2, 29) else ts.replace(year=yr, day=28)
-            )
+            # Re-anchor to each visible calendar year so the analog covers
+            # the full ±6-month window (which spans last year and next year).
+            pieces = []
+            for anchor in (today_.year - 1, today_.year, today_.year + 1):
+                shifted = d.copy()
+                shifted["date"] = shifted["date"].apply(
+                    lambda ts, a=anchor: ts.replace(year=a) if (ts.month, ts.day) != (2, 29) else ts.replace(year=a, day=28)
+                )
+                pieces.append(shifted)
+            d = pd.concat(pieces, ignore_index=True).sort_values("date")
             fig.add_trace(go.Scatter(
                 x=d["date"], y=d[primary_column],
                 line=dict(color=color, width=1.2),
                 name=f"{yr}", opacity=0.85,
+                legendgroup=f"analog_{yr}",
             ))
 
     if not current.empty:
@@ -244,11 +256,12 @@ def climatology_envelope_figure(
             annotation_text="Awaiting new data", annotation_position="top left",
         )
 
-    # Constrain x-axis so the chart focuses on the data window (12 months back
-    # to ~6 weeks past today) rather than auto-fitting to the full climatology
-    # year, which can stretch into next year and waste space.
-    x_min = pd.Timestamp(today_) - pd.Timedelta(days=365)
-    x_max = pd.Timestamp(today_) + pd.Timedelta(days=45)
+    # Center "today" in the chart with a symmetric ±6-month window so the
+    # forward view is as wide as the historical view regardless of the
+    # day-of-year. Extend if the current-data window pokes past either edge.
+    half_window = pd.Timedelta(days=183)
+    x_min = pd.Timestamp(today_) - half_window
+    x_max = pd.Timestamp(today_) + half_window
     if not current.empty:
         c_dates = pd.to_datetime(current["date"])
         x_min = min(x_min, c_dates.min())

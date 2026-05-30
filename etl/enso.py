@@ -21,6 +21,30 @@ ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 EL_NINO_THRESHOLD = 0.5
 LA_NINA_THRESHOLD = -0.5
 
+# Canonical "notable" analog years for dashboard overlays, documentation, and
+# trigger calibration narratives. Single source of truth — do not redefine
+# elsewhere.
+#
+# El Niño: the four very-strong / strong events with documented agricultural
+# impact in El Salvador and Haiti (see el_nino_agricultural_risks.md).
+#   1982-83  Very Strong
+#   1997-98  Very Strong ("super" El Niño)
+#   2015-16  Very Strong (60% maize / 80% beans loss in ES Dry Corridor)
+#   2023-24  Strong
+# Listed by onset year (boreal-summer development year).
+NOTABLE_EL_NINO_YEARS: list[int] = [1982, 1997, 2015, 2023]
+
+# La Niña: strong / multi-year events per NOAA CPC ONI (ggweather.com/enso/oni.htm
+# and psl.noaa.gov/enso/climaterisks). Listed by onset year. 1973-76 omitted
+# because it predates the CHIRPS record (1981-); 2020 is the onset of the
+# 2020-23 "triple-dip" event.
+#   1988-89   Strong
+#   1998-2001 Strong (multi-year)
+#   2007-08   Strong
+#   2010-12   Strong (multi-year)
+#   2020-23   Moderate, triple-dip (rare)
+NOTABLE_LA_NINA_YEARS: list[int] = [1988, 1998, 2007, 2010, 2020]
+
 
 def fetch() -> pd.DataFrame:
     resp = requests.get(ONI_URL, timeout=30)
