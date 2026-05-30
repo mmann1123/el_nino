@@ -8,7 +8,9 @@
 substitutions:
   _REGION: us-central1
   _REPO: el-nino
-  _IMAGE: es-drought-dash
+  # One shared image for every country deployment — country is selected at
+  # runtime via the COUNTRY env var on each Cloud Run service/job.
+  _IMAGE: el-nino-dash
 
 steps:
   - id: build

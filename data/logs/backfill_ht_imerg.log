@@ -1,0 +1,7 @@
+Backfilling imerg: 1981-01-01 -> 2026-05-30 in 6-month chunks
+  imerg: 1981-01-01 -> 1981-06-30
+    retrying with chunk_months=3 after EEException: Error in map(ID=1):
+Image.select: Band pattern 'precipitation' was applied to an Image with no bands. See https://developers.google.com/earth-engine/guides/debugging#no-bands
+  imerg: 1981-01-01 -> 1981-03-31
+    retrying with chunk_months=1 after EEException: Error in map(ID=1):
+Image.select: Band pattern 'precipitation' was applied to an Image with no bands. See https://developers.google.com/earth-engine/guides/debugging#no-bands

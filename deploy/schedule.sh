@@ -2,15 +2,19 @@
 # Create or update Cloud Scheduler entries that invoke the Cloud Run Job.
 # Idempotent: deletes-then-creates each entry so the script is declarative.
 #
-# Usage: PROJECT=haiti-fews-mmann1123 REGION=us-central1 bash schedule.sh
+# Usage:
+#   bash schedule.sh                                       # El Salvador (default)
+#   COUNTRY=haiti COUNTRY_CODE=ht bash schedule.sh         # Haiti
 
 set -euo pipefail
 
 PROJECT="${PROJECT:-haiti-fews-mmann1123}"
 REGION="${REGION:-us-central1}"
-SA_NAME="${SA_NAME:-es-drought-etl}"
+COUNTRY="${COUNTRY:-el_salvador}"
+COUNTRY_CODE="${COUNTRY_CODE:-es}"
+SA_NAME="${SA_NAME:-${COUNTRY_CODE}-drought-etl}"
 SA_EMAIL="${SA_NAME}@${PROJECT}.iam.gserviceaccount.com"
-JOB_NAME="${JOB_NAME:-es-drought-etl}"
+JOB_NAME="${JOB_NAME:-${COUNTRY_CODE}-drought-etl}"
 
 URI="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT}/jobs/${JOB_NAME}:run"
 
@@ -45,35 +49,36 @@ create_scheduler() {
     --message-body="$body"
 }
 
-# All times in UTC. El Salvador is UTC-6 year-round, so 09:00 UTC = 03:00 local.
-# Entries are spaced 15 min apart so they don't race the same Cloud Run slot.
+# All times in UTC. ES is UTC-6 year-round (09:00 UTC = 03:00 local); HT is
+# UTC-5 (09:00 UTC = 04:00 local). Entries are spaced 15 min apart so they
+# don't race the same Cloud Run slot.
 
-create_scheduler "es-prelim" \
+create_scheduler "${COUNTRY_CODE}-prelim" \
   "0 9 * * *" \
   "UCSB CHIRPS-Prelim daily (3-day-latency rainfall fill)" \
   "-m,el_nino.etl.run_etl,prelim"
 
-create_scheduler "es-forecast" \
+create_scheduler "${COUNTRY_CODE}-forecast" \
   "15 9 * * *" \
   "NOAA GFS 15-day rainfall forecast" \
   "-m,el_nino.etl.run_etl,forecast"
 
-create_scheduler "es-fetch-chirps" \
+create_scheduler "${COUNTRY_CODE}-fetch-chirps" \
   "30 9 */3 * *" \
   "CHIRPS observed from GEE (every 3 days)" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,chirps"
 
-create_scheduler "es-fetch-smap" \
+create_scheduler "${COUNTRY_CODE}-fetch-smap" \
   "45 9 */3 * *" \
   "SMAP L4 root-zone soil moisture (every 3 days)" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,smap"
 
-create_scheduler "es-fetch-wapor" \
+create_scheduler "${COUNTRY_CODE}-fetch-wapor" \
   "0 10 */3 * *" \
   "FAO WAPOR v3 L1 AETI evapotranspiration (every 3 days)" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,wapor"
 
-create_scheduler "es-fetch-imerg" \
+create_scheduler "${COUNTRY_CODE}-fetch-imerg" \
   "15 10 * * *" \
   "NASA IMERG-Late daily rainfall" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,imerg"
@@ -89,6 +94,6 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
   --quiet >/dev/null
 
 echo
-echo "All scheduler entries:"
-gcloud scheduler jobs list --location="$REGION" --filter="name~es-" \
+echo "All scheduler entries for ${COUNTRY_CODE}:"
+gcloud scheduler jobs list --location="$REGION" --filter="name~${COUNTRY_CODE}-" \
   --format='table(name.basename(),schedule,state,description)'

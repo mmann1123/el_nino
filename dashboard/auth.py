@@ -16,7 +16,7 @@ def require_login() -> None:
 
     user = getattr(st, "experimental_user", None)
     if user is None or not getattr(user, "is_logged_in", False):
-        st.title("El Salvador Drought Dashboard")
+        st.title(f"{config.CC['display_name']} Drought Dashboard")
         st.write("Sign in with your Google account to continue.")
         if hasattr(st, "login"):
             st.button("Sign in with Google", on_click=lambda: st.login("google"))

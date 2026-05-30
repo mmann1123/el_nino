@@ -1,7 +1,12 @@
 """Synthetic-data generator. Lets the dashboard render without GEE access
 configured. Produces realistic-shaped CHIRPS/SMAP/WAPOR/IMERG timeseries
-for the 14 departamentos: seasonal cycle + AR(1) noise + a 2015-like dry
-anomaly in the canícula window of El Niño years from the NOAA ONI.
+per department: seasonal cycle + AR(1) noise + a 2015-like dry anomaly in
+the canícula window of El Niño years from the NOAA ONI.
+
+TODO(haiti-calibration): seasonal cycle (primera/postrera, canícula DOY
+196-218) and DEPARTAMENTO_FALLBACK are ES-tuned. When COUNTRY=haiti the
+fallback names won't match GAUL and the phenology won't match Haitian
+printemps/été/automne. Follow-up PR will country-parameterize these.
 
 Use only for local UX work. Real data lives in raw/{indicator}/*.parquet
 after the ETL runs.

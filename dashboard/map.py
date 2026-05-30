@@ -25,9 +25,8 @@ from .. import config
 from ..etl import storage
 from . import drought_status
 
-# El Salvador rough center + zoom for the mini-map.
-ES_CENTER = {"lat": 13.794, "lon": -88.917}
-ES_ZOOM = 6.7
+# Active country's rough center + zoom for the mini-map. Both come from
+# config.COUNTRIES[COUNTRY] so a new country just needs a registry entry.
 
 
 def _latest_anom_per_departamento(indicator_name: str) -> dict[str, float | None]:
@@ -55,9 +54,9 @@ def _latest_anom_per_departamento(indicator_name: str) -> dict[str, float | None
 
 def _load_geojson() -> dict | None:
     """Load the AOI GeoJSON and normalize any GeometryCollection to a
-    Polygon/MultiPolygon. FAO GAUL ships at least one El Salvador feature
-    (San Miguel) as a GeometryCollection mixing a stray LineString with the
-    actual Polygon; Plotly's choropleth_map silently drops such features."""
+    Polygon/MultiPolygon. FAO GAUL ships some features as a GeometryCollection
+    mixing a stray LineString with the actual Polygon (e.g. El Salvador's
+    San Miguel); Plotly's choropleth_map silently drops such features."""
     p = Path(config.AOI_PATH)
     if not p.exists():
         return None
@@ -135,8 +134,8 @@ def departamento_status_figure(
         color="status_label",
         color_discrete_map=color_map,
         category_orders={"status_label": category_order},
-        center=ES_CENTER,
-        zoom=ES_ZOOM,
+        center=config.CC["map_center"],
+        zoom=config.CC["map_zoom"],
         map_style="carto-positron",
         opacity=0.78,
         hover_data={

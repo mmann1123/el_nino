@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/mmann1123/Documents/github/el_nino mv etl/aoi/departamentos.geojson etl/aoi/departamentos_es.geojson)"
+    ]
+  }
+}

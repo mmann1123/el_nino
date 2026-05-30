@@ -3,18 +3,25 @@
 # account, grant roles, create the Artifact Registry repo. Idempotent — safe
 # to re-run.
 #
-# Usage: PROJECT=haiti-fews-mmann1123 REGION=us-central1 bash setup_infra.sh
+# Per-country deployment is driven by COUNTRY_CODE (es|ht); all resource names
+# are templated off it so two deployments don't collide.
+#
+# Usage:
+#   bash setup_infra.sh                                       # El Salvador (default)
+#   COUNTRY=haiti COUNTRY_CODE=ht bash setup_infra.sh         # Haiti
 
 set -euo pipefail
 
 PROJECT="${PROJECT:-haiti-fews-mmann1123}"
 REGION="${REGION:-us-central1}"
-BUCKET="${BUCKET:-${PROJECT}-es-drought-dash}"
-SA_NAME="${SA_NAME:-es-drought-etl}"
+COUNTRY="${COUNTRY:-el_salvador}"
+COUNTRY_CODE="${COUNTRY_CODE:-es}"
+BUCKET="${BUCKET:-${PROJECT}-${COUNTRY_CODE}-drought-dash}"
+SA_NAME="${SA_NAME:-${COUNTRY_CODE}-drought-etl}"
 SA_EMAIL="${SA_NAME}@${PROJECT}.iam.gserviceaccount.com"
 REPO="${REPO:-el-nino}"
 
-echo "Setting up project=$PROJECT region=$REGION bucket=gs://$BUCKET sa=$SA_EMAIL"
+echo "Setting up country=$COUNTRY project=$PROJECT region=$REGION bucket=gs://$BUCKET sa=$SA_EMAIL"
 
 gcloud config set project "$PROJECT"
 
@@ -40,7 +47,7 @@ fi
 echo "=> Ensuring service account $SA_EMAIL exists..."
 if ! gcloud iam service-accounts describe "$SA_EMAIL" >/dev/null 2>&1; then
   gcloud iam service-accounts create "$SA_NAME" \
-    --display-name="El Salvador Drought ETL"
+    --display-name="${COUNTRY_CODE^^} Drought ETL"
 else
   echo "   already exists"
 fi
@@ -72,7 +79,7 @@ if ! gcloud artifacts repositories describe "$REPO" --location="$REGION" >/dev/n
   gcloud artifacts repositories create "$REPO" \
     --repository-format=docker \
     --location="$REGION" \
-    --description="Container images for El Salvador drought dashboard"
+    --description="Container images for the el_nino drought dashboard (shared across countries)"
 else
   echo "   already exists"
 fi

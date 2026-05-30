@@ -1,5 +1,10 @@
 """Calibrated runtime trigger evaluator.
 
+TODO(haiti-calibration): silking window and thresholds below are calibrated to
+El Salvador maize. When COUNTRY=haiti these values still fire but reflect ES
+phenology, not Haiti's printemps/été/automne seasons. Follow-up PR will define
+country-specific trigger configurations.
+
 Operating point from `el_nino/experiments/trigger_calibration_report.md`:
 
     SPI-3 < -1.5 AND SMAP root-zone soil moisture anomaly < -0.5σ

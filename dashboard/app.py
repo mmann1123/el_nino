@@ -27,7 +27,7 @@ from el_nino.etl.indicators import INDICATORS  # noqa: E402
 from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, status as status_view  # noqa: E402
 
 st.set_page_config(
-    page_title="El Salvador Drought Monitor",
+    page_title=f"{config.CC['display_name']} Drought Monitor",
     page_icon="🌾",
     layout="wide",
 )
@@ -48,7 +48,7 @@ INDICATOR_HELP = {
         "location and time of year. **0 = typical**, **−1 = moderate drought**, "
         "**−1.5 = severe drought**. Source: CHIRPS v3. "
         "**15-day forecast** is from NOAA GFS 0.25° (raw, not bias-corrected to "
-        "CHIRPS — GFS tends to over-predict in Central America)."
+        "CHIRPS — GFS tends to over-predict in the tropics)."
     ),
     "smap": (
         "**Root-zone soil moisture (0–100 cm)** — water available to maize roots. "
@@ -124,10 +124,10 @@ def _header_icon_html() -> str:
 st.sidebar.markdown(
     "<h2 style='margin-top:0;margin-bottom:0.6em;white-space:nowrap;"
     "font-size:1.25em;display:flex;align-items:center;'>"
-    f"{_header_icon_html()}ES Drought Monitor</h2>",
+    f"{_header_icon_html()}{config.CC['short_code']} Drought Monitor</h2>",
     unsafe_allow_html=True,
 )
-st.sidebar.caption("El Salvador maize-season indicators")
+st.sidebar.caption(f"{config.CC['display_name']} {config.CC['crop_focus_caption']}")
 
 deps_available = data.list_departamentos()
 if not deps_available:
@@ -153,9 +153,9 @@ departamento = st.sidebar.selectbox(
     index=default_idx,
     on_change=_on_dep_dropdown_changed,
     help=(
-        "Pick an El Salvador departamento, or 'All (country mean)' for a "
-        "nationwide average. You can also click any departamento on the map. "
-        "Eastern Dry Corridor focus: Morazán, San Miguel, La Unión, Usulután."
+        f"Pick a {config.CC['display_name']} department, or 'All (country mean)' "
+        "for a nationwide average. You can also click any department on the map. "
+        f"{config.CC['priority_label']} focus: {config.CC['priority_display_names']}."
     ),
 )
 # Persist the dropdown's current value so the index= computation works on
@@ -222,9 +222,9 @@ with tabs[0]:
         map_fig = map_view.departamento_status_figure(indicator_name, selected_departamento=departamento)
         if map_fig is not None:
             st.markdown(
-                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all 14 departamentos**  \n"
+                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all departments**  \n"
                 "<span style='font-size:0.85em;color:#546e7a;'>"
-                "💡 Click any departamento to focus the dashboard on it.</span>",
+                "💡 Click any department to focus the dashboard on it.</span>",
                 unsafe_allow_html=True,
             )
             map_event = st.plotly_chart(
@@ -244,7 +244,7 @@ with tabs[0]:
                 if st.button(
                     "🌐 Select All",
                     key="select_all_btn",
-                    help="Switch to the country-mean view across all 14 departamentos.",
+                    help="Switch to the country-mean view across all departments.",
                     width="stretch",
                 ):
                     if st.session_state.get("dep_choice") != data.ALL:
@@ -515,7 +515,7 @@ with st.expander("About this data"):
     st.markdown(f"""
     **Indicators** (refresh cadence in parentheses):
     - **CHIRPS v3** rainfall + SPI-1/3/6 ({INDICATORS['chirps'].freshness.expected_cadence_days} days)
-    - **NOAA GFS0P25** 15-day rainfall forecast (daily refresh, uncalibrated — GFS over-predicts in Central America)
+    - **NOAA GFS0P25** 15-day rainfall forecast (daily refresh, uncalibrated — GFS over-predicts in the tropics)
     - **SMAP L4** root-zone soil moisture ({INDICATORS['smap'].freshness.expected_cadence_days} days)
     - **FAO WAPOR v3** L1 AETI (dekadal, ~300 m) ({INDICATORS['wapor'].freshness.expected_cadence_days} days)
     - **IMERG-Late V07** daily rainfall ({INDICATORS['imerg'].freshness.expected_cadence_days} day)

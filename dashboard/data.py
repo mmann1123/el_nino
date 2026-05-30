@@ -32,6 +32,7 @@ def get_con() -> duckdb.DuckDBPyConnection:
 @st.cache_data(ttl=3600)
 def list_departamentos() -> list[str]:
     deps: set[str] = set()
+    country = config.country_departments()  # frozenset; empty = no filter
     for ind in INDICATORS:
         d = config.RAW_DIR / ind
         if not d.exists():
@@ -40,7 +41,10 @@ def list_departamentos() -> list[str]:
             try:
                 df = pd.read_parquet(f, columns=["departamento"])
                 if not df.empty:
-                    deps.update(df["departamento"].dropna().unique().tolist())
+                    names = df["departamento"].dropna().unique().tolist()
+                    if country:
+                        names = [n for n in names if n in country]
+                    deps.update(names)
             except Exception:
                 continue
     return [ALL] + sorted(deps)
@@ -66,18 +70,25 @@ def load_indicator(indicator: str, departamento: str) -> pd.DataFrame:
 def _load_indicator_all(indicator: str) -> pd.DataFrame:
     """Country mean: pool every per-departamento parquet and average numeric
     columns by date. Preserves is_forecast (any row marked is_forecast on any
-    departamento for that date stays True) and departamento label = ALL."""
+    departamento for that date stays True) and departamento label = ALL.
+
+    When ES and HT share one local STORAGE_ROOT, restrict to the active
+    country's parquets via the AOI department set."""
     d = config.RAW_DIR / indicator
     if not d.exists():
         return pd.DataFrame()
+    country = config.country_departments()
     frames = []
     for f in d.glob("*.parquet"):
         try:
             df = pd.read_parquet(f)
         except Exception:
             continue
-        if not df.empty:
-            frames.append(df)
+        if df.empty:
+            continue
+        if country and df["departamento"].iloc[0] not in country:
+            continue
+        frames.append(df)
     if not frames:
         return pd.DataFrame()
     pooled = pd.concat(frames, ignore_index=True)
@@ -102,9 +113,14 @@ def load_climatology(indicator: str, departamento: str, value_column: str) -> pd
     if clim.empty:
         return clim
     if departamento == ALL:
-        # Average per-departamento percentile fences by DOY. Simple mean across
-        # the 14 dep-specific climatologies — gives a country-mean envelope.
+        # Average per-departamento percentile fences by DOY across the active
+        # country's departments — gives a country-mean envelope. Filter against
+        # the AOI department set so mixed local data (ES + HT in one
+        # STORAGE_ROOT) doesn't cross-pollute.
         sub = clim[clim["value_column"] == value_column]
+        country = config.country_departments()
+        if country:
+            sub = sub[sub["departamento"].isin(country)]
         if sub.empty:
             return sub
         agg_spec = {
@@ -141,6 +157,9 @@ def load_raw_climatology(indicator: str, departamento: str, value_column: str) -
         if raw.empty:
             return raw
         sub = raw[raw["value_column"] == value_column]
+        country = config.country_departments()
+        if country:
+            sub = sub[sub["departamento"].isin(country)]
         agg_spec = {c: "mean" for c in
                     ["mu", "sigma", "p05", "p10", "p25", "p50", "p75", "p90", "p95"]}
         return sub.groupby("doy", as_index=False).agg(agg_spec).sort_values("doy").reset_index(drop=True)

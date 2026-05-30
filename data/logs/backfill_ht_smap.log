@@ -1,0 +1,8 @@
+Backfilling smap: 1981-01-01 -> 2026-05-30 in 6-month chunks
+  smap: 1981-01-01 -> 1981-06-30
+    retrying with chunk_months=3 after EEException: Error in map(ID=0):
+Image.projection: Can't get band number 0. Image has no bands.
+  smap: 1981-01-01 -> 1981-03-31
+    retrying with chunk_months=1 after EEException: Error in map(ID=0):
+Image.projection: Can't get band number 0. Image has no bands.
+  smap: 1981-01-01 -> 1981-01-31

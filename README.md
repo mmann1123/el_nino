@@ -1,9 +1,12 @@
-# El Salvador Drought & Plant-Stress Dashboard
+# Central America & Caribbean Drought & Plant-Stress Dashboard
 
 Sign-in-gated Streamlit dashboard tracking CHIRPS rainfall (with SPI-1/3/6),
-SMAP L4 root-zone soil moisture, FAO WAPOR v3 L1 AETI evapotranspiration, and IMERG-Late rainfall
-for the 14 departamentos of El Salvador. Same envelope-rendering pattern as the
-existing FEWS dashboard. Design plan: `~/.claude/plans/i-need-to-design-parsed-hare.md`.
+SMAP L4 root-zone soil moisture, FAO WAPOR v3 L1 AETI evapotranspiration, and
+IMERG-Late rainfall, broken out by ADM1 department. One codebase, currently
+deployed for El Salvador (14 departamentos) and Haiti (10 départements); see
+[Multi-country deployment](#multi-country-deployment) below.
+Same envelope-rendering pattern as the existing FEWS dashboard.
+Design plan: `~/.claude/plans/i-need-to-design-parsed-hare.md`.
 
 ## Run locally (no GEE, no auth needed)
 
@@ -24,8 +27,10 @@ Open http://localhost:8501.
 ## Real data (Earth Engine)
 
 ```bash
-# One-time: fetch the 14 departamento polygons from FAO/GAUL via GEE
+# One-time per country: fetch the ADM1 polygons from FAO/GAUL via GEE.
+# COUNTRY defaults to el_salvador; set COUNTRY=haiti to bootstrap Haiti.
 python -m el_nino.etl.aoi.fetch_aoi
+COUNTRY=haiti python -m el_nino.etl.aoi.fetch_aoi
 
 # Pull a window for an indicator
 python -m el_nino.etl.run_etl fetch --indicator chirps --start 2026-04-01
@@ -38,34 +43,35 @@ GEE auth: `earthengine authenticate` once interactively, then set `GEE_PROJECT`
 in `.env`. In Cloud Run, mount a service-account JSON via Secret Manager and set
 `GEE_SERVICE_ACCOUNT_JSON`.
 
-## Deploy to Google Cloud (sketch — see [deploy/](deploy/))
+## Multi-country deployment
 
-1. Create GCS bucket: `gs://es-drought-dash`.
-2. Build & push the image: `gcloud builds submit el_nino --tag gcr.io/$PROJECT/es-drought-dash`.
-3. **Dashboard** (Cloud Run Service) — mount the bucket via gcsfuse at `/mnt/gcs`:
-   ```bash
-   gcloud run deploy es-drought-dash \
-       --image gcr.io/$PROJECT/es-drought-dash \
-       --add-volume name=gcs,type=cloud-storage,bucket=es-drought-dash \
-       --add-volume-mount volume=gcs,mount-path=/mnt/gcs \
-       --set-env-vars STORAGE_ROOT=/mnt/gcs,AUTH_MODE=oidc \
-       --set-secrets GEE_SERVICE_ACCOUNT_JSON=gee-sa:latest \
-       --region us-central1
-   ```
-4. **ETL** (Cloud Run Job, scheduled every 3 days):
-   ```bash
-   gcloud run jobs deploy es-drought-etl \
-       --image gcr.io/$PROJECT/es-drought-dash \
-       --command python --args="-m,el_nino.etl.run_etl,fetch,--indicator,chirps" \
-       --add-volume name=gcs,type=cloud-storage,bucket=es-drought-dash \
-       --add-volume-mount volume=gcs,mount-path=/mnt/gcs \
-       --region us-central1
-   gcloud scheduler jobs create http es-drought-etl-cron --schedule="0 9 */3 * *" \
-       --uri="https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT/jobs/es-drought-etl:run" \
-       --oauth-service-account-email=$SA
-   ```
-5. **Auth** — in `secrets.toml` (mounted from Secret Manager), configure the
-   `[auth.google]` OIDC client per Streamlit's docs; set `ALLOWED_EMAILS` env var.
+Country selection happens at startup via the `COUNTRY` env var (`el_salvador`
+default, `haiti` supported). The same image is deployed twice — once per
+country — with `COUNTRY` set as a Cloud Run env var. Each deployment writes to
+its own GCS bucket (`${PROJECT}-${COUNTRY_CODE}-drought-dash`) so the two
+countries are fully isolated at the data layer.
+
+Country-specific assets and constants live in `el_nino/config.py` under the
+`COUNTRIES` registry — AOI filename, map center/zoom, priority departments, UI
+labels. Adding a third country is: append an entry, run
+`COUNTRY=<key> python -m el_nino.etl.aoi.fetch_aoi` to bootstrap its geojson,
+and deploy with the matching `COUNTRY` / `COUNTRY_CODE` env vars. See
+[deploy/README.md](deploy/README.md) for the exact commands.
+
+Trigger windows and synthetic-data phenology in `etl/triggers.py`,
+`etl/synth.py`, and `experiments/trigger_calibration.py` are currently
+El Salvador-tuned; grep for `TODO(haiti-calibration)` to find the spots that
+need country-specific values in the follow-up calibration PR.
+
+## Deploy to Google Cloud
+
+See [deploy/README.md](deploy/README.md) for the full, scripted, idempotent
+deployment (per-country). Four steps per country: `setup_infra.sh`,
+`cloudbuild.yaml`, `deploy_job.sh`, `schedule.sh` — each driven by `COUNTRY`
+and `COUNTRY_CODE` env vars so the same scripts deploy ES (defaults) and HT.
+
+**Auth** — in `secrets.toml` (mounted from Secret Manager), configure the
+`[auth.google]` OIDC client per Streamlit's docs; set `ALLOWED_EMAILS` env var.
 
 ## Layout
 
@@ -82,8 +88,9 @@ el_nino/
 │   ├── triggers.py            # placeholder; pending calibration
 │   ├── synth.py               # synthetic data for local dev
 │   ├── aoi/
-│   │   ├── fetch_aoi.py       # one-time GEE FAO/GAUL fetch
-│   │   └── departamentos.geojson  (gitignored; produced by fetch_aoi)
+│   │   ├── fetch_aoi.py       # one-time GEE FAO/GAUL fetch (per country)
+│   │   ├── departamentos_es.geojson  # El Salvador ADM1 polygons
+│   │   └── departamentos_ht.geojson  # Haiti ADM1 polygons (bootstrap with COUNTRY=haiti)
 │   └── indicators/
 │       ├── base.py
 │       ├── chirps.py          # CHIRPS v3 + SPI

@@ -1,5 +1,10 @@
 """Trigger calibration against labeled historical El Niño impact events.
 
+TODO(haiti-calibration): DRY_CORRIDOR, SILKING_DOY_*, and LABELED_EVENTS below
+are El Salvador-specific. A Haiti calibration needs its own priority
+departments (Nord-Ouest, Artibonite, etc.), seasonal windows for
+printemps/été/automne, and labeled events (2015-16, 2023-24). Follow-up PR.
+
 Inputs:
   - SPI-3 (CHIRPS, 1981+)   — long baseline, single-indicator triggers
   - RZSM anomaly (SMAP, 2015+) — short baseline, for confirmation
