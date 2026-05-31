@@ -61,6 +61,18 @@ COUNTRIES: dict[str, dict] = {
         "priority_label": "Eastern Dry Corridor",
         "priority_display_names": "Morazán, San Miguel, La Unión, Usulután",
         "crop_focus_caption": "maize-season indicators",
+        # Calibration anchors — primera maize silking, mid-Jul to mid-Aug.
+        "silking_window": (196, 227),
+        # year → (severity, note). Drawn from el_nino_agricultural_risks.md.
+        "labeled_events": {
+            1997: ("severe-moderate", "Super El Niño; FAO 'considerably below-average' 2nd-season maize"),
+            2002: ("moderate",        "Moderate El Niño"),
+            2009: ("moderate",        "Moderate El Niño"),
+            2014: ("moderate",        "Weak El Niño precursor; CHIRPS deficits late summer"),
+            2015: ("severe",          "Very Strong El Niño; 60% maize / 80% beans loss in Dry Corridor"),
+            2018: ("moderate",        "Weak El Niño; postrera impact even at weak strength (FAO 2018)"),
+            2023: ("moderate",        "Strong El Niño; one-month delay to postrera; 25%+ subsistence yield reduction"),
+        },
     },
     "haiti": {
         "iso2": "HT",
@@ -68,14 +80,31 @@ COUNTRIES: dict[str, dict] = {
         "short_code": "HT",
         "gaul_adm0_name": "Haiti",
         "aoi_filename": "departamentos_ht.geojson",
-        "map_center": {"lat": 18.97, "lon": -72.30},
-        "map_zoom": 7.6,
-        # TODO(haiti-calibration): confirm priority departments with FEWS guidance.
+        "map_center": {"lat": 18.85, "lon": -72.80},
+        "map_zoom": 6.9,
+        # Priority departments are the rainfed "dry corridor analog" per
+        # el_nino_agricultural_risks.md: southern peninsula + Northwest +
+        # Central Plateau. Artibonite is excluded — it's irrigated/buffered.
         # Names must match GAUL ADM1_NAME exactly (spaces, not hyphens).
-        "priority_departments": ["Nord Ouest", "Artibonite", "Sud Est", "Centre"],
-        "priority_label": "Priority Departments",
-        "priority_display_names": "Nord-Ouest, Artibonite, Sud-Est, Centre",
-        "crop_focus_caption": "rice & maize indicators",
+        "priority_departments": ["Sud", "Sud Est", "Grande Anse", "Nippes", "Nord Ouest", "Centre"],
+        "priority_label": "Drought-vulnerable departments",
+        "priority_display_names": "Sud, Sud-Est, Grand'Anse, Nippes, Nord-Ouest, Centre",
+        "crop_focus_caption": "printemps/été drought indicators",
+        # Calibration anchors — printemps grain-fill (~Jun) through été silking
+        # (~Jul-Aug), spanning the Hispaniola canícula that El Niño intensifies.
+        # Curtis & Gamble 2007 place midsummer-drought onset in early June.
+        "silking_window": (152, 227),  # Jun 1 → Aug 15
+        # year → (severity, note). Doc-anchored events from
+        # el_nino_agricultural_risks.md plus moderate analog years (NOAA ONI).
+        # 1997/2015/2023 are explicitly documented as Caribbean drought years.
+        "labeled_events": {
+            1997: ("severe-moderate", "Super El Niño; Caribbean drought; pre-Mitch deficits"),
+            2009: ("moderate",        "Moderate El Niño 2009-10"),
+            2014: ("moderate",        "Weak El Niño precursor; lead-up to 2015 crisis"),
+            2015: ("severe",          "Very Strong El Niño; -39% rainfed maize / -44% beans nationally; national emergency (FEWS NET 2016)"),
+            2018: ("moderate",        "Weak El Niño; postrera/automne impact"),
+            2023: ("moderate",        "Strong El Niño; FEWS Aug 2023 Northwest + southern peninsula impact"),
+        },
     },
 }
 
@@ -88,10 +117,6 @@ CC = COUNTRIES[COUNTRY]
 
 AOI_PATH = PROJECT_ROOT / "etl" / "aoi" / CC["aoi_filename"]
 PRIORITY_DEPARTMENTS = CC["priority_departments"]
-
-# Deprecated alias — kept for one release so existing callers in synth.py and
-# experiments/ don't break in the same PR. Remove once those are migrated.
-DRY_CORRIDOR_DEPARTAMENTOS = PRIORITY_DEPARTMENTS
 
 
 def ensure_dirs() -> None:

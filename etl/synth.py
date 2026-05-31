@@ -3,13 +3,11 @@ configured. Produces realistic-shaped CHIRPS/SMAP/WAPOR/IMERG timeseries
 per department: seasonal cycle + AR(1) noise + a 2015-like dry anomaly in
 the canícula window of El Niño years from the NOAA ONI.
 
-TODO(haiti-calibration): seasonal cycle (primera/postrera, canícula DOY
-196-218) and DEPARTAMENTO_FALLBACK are ES-tuned. When COUNTRY=haiti the
-fallback names won't match GAUL and the phenology won't match Haitian
-printemps/été/automne. Follow-up PR will country-parameterize these.
-
-Use only for local UX work. Real data lives in raw/{indicator}/*.parquet
-after the ETL runs.
+The seasonal cycle (primera/postrera, canícula DOY 196-218) is ES-tuned;
+under COUNTRY=haiti it still renders plausible-looking traces but the
+phenology won't match Haitian printemps/été/automne. Synthetic data is for
+local UX work only, so this approximation is OK in practice — real Haiti
+data should come from `python -m el_nino.etl.run_etl backfill`.
 """
 
 from __future__ import annotations
@@ -41,8 +39,8 @@ def _departamentos() -> list[str]:
     return sorted(feat["properties"].get("ADM1_NAME", "") for feat in gj.get("features", []))
 
 
-def _dry_corridor_modifier(dep: str) -> float:
-    return 1.15 if dep in config.DRY_CORRIDOR_DEPARTAMENTOS else 1.0
+def _priority_modifier(dep: str) -> float:
+    return 1.15 if dep in config.PRIORITY_DEPARTMENTS else 1.0
 
 
 def _el_nino_year_set() -> set[int]:
@@ -60,7 +58,7 @@ def synth_chirps(start: date, end: date) -> None:
     dates = pd.date_range(start, end, freq="D")
 
     for dep in deps:
-        amp = 8.0 * _dry_corridor_modifier(dep)  # daily mean mm
+        amp = 8.0 * _priority_modifier(dep)  # daily mean mm
         base = []
         prev = 0.0
         for d in dates:
@@ -109,7 +107,7 @@ def synth_smap(start: date, end: date) -> None:
             seasonal_baseline = 0.32 + 0.10 * np.sin(2 * np.pi * (doy - 90) / 365)
             anomaly = 0.0
             if d.year in nino_years and 180 <= doy <= 240:
-                anomaly = -0.08 * _dry_corridor_modifier(dep)
+                anomaly = -0.08 * _priority_modifier(dep)
             val = 0.7 * prev + 0.3 * (seasonal_baseline + anomaly + RNG.normal(0, 0.015))
             val = float(np.clip(val, 0.05, 0.55))
             prev = val
@@ -141,7 +139,7 @@ def synth_wapor(start: date, end: date) -> None:
             base_eta = 35 + 25 * np.sin(2 * np.pi * (doy - 60) / 365)
             anomaly = 0.0
             if d.year in nino_years and 196 <= doy <= 240:
-                anomaly = -8.0 * _dry_corridor_modifier(dep)
+                anomaly = -8.0 * _priority_modifier(dep)
             val = base_eta + anomaly + RNG.normal(0, 3.0)
             rows.append({"date": d, "departamento": dep, "eta_mm": float(val), "is_forecast": False})
         df = pd.DataFrame(rows)

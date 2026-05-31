@@ -1,22 +1,14 @@
 """Calibrated runtime trigger evaluator.
 
-TODO(haiti-calibration): silking window and thresholds below are calibrated to
-El Salvador maize. When COUNTRY=haiti these values still fire but reflect ES
-phenology, not Haiti's printemps/été/automne seasons. Follow-up PR will define
-country-specific trigger configurations.
+Country-aware: the active country's silking window comes from
+`config.CC['silking_window']`. The CALIBRATED_TRIGGERS list is keyed by
+country in TRIGGERS_BY_COUNTRY — pick using `config.COUNTRY` at import time.
 
-Operating point from `el_nino/experiments/trigger_calibration_report.md`:
+Operating points are calibrated per-country via
+`el_nino/experiments/trigger_calibration.py` (see the
+`trigger_calibration_report_{code}.md` files for the full sweep).
 
-    SPI-3 < -1.5 AND SMAP root-zone soil moisture anomaly < -0.5σ
-    during the silking window (DOY 196-227, mid-Jul to mid-Aug)
-
-Performance against the labeled record (2015-2025):
-    Precision: 1.00 (no false positives in 11 years)
-    Recall:    0.67 (catches 2015 severe + 2018 moderate)
-    Severe recall: 1.00 (catches the 2015 catastrophic event)
-    False positives per decade: 0.00
-
-For each departamento and each year of overlap (CHIRPS 1981+, SMAP 2015+),
+For each department and each year of overlap (CHIRPS 1981+, SMAP 2015+),
 the evaluator records whether both conditions were met during silking.
 """
 
@@ -31,7 +23,7 @@ import pandas as pd
 from .. import config
 from . import storage
 
-SILKING_WINDOW = (196, 227)  # mid-July to mid-August
+SILKING_WINDOW: tuple[int, int] = config.CC["silking_window"]
 
 
 @dataclass
@@ -63,29 +55,65 @@ class CalibratedTrigger:
     stats: CalibrationStats | None = None
 
 
-# Calibration numbers below are from the 2025-05 sweep over 2015-2025 SMAP data.
-# Re-run `python -m el_nino.experiments.trigger_calibration` after every annual
-# data refresh to update them.
-CALIBRATED_TRIGGERS: list[CalibratedTrigger] = [
-    CalibratedTrigger(
-        name="silking_drought_v1",
-        description=(
-            "SPI-3 < −1.5 AND SMAP root-zone anomaly < −0.5σ during silking "
-            "(DOY 196-227, mid-Jul to mid-Aug)"
+# Per-country calibrated triggers. Re-run
+# `COUNTRY=<key> python -m el_nino.experiments.trigger_calibration` after every
+# annual data refresh to update these.
+TRIGGERS_BY_COUNTRY: dict[str, list[CalibratedTrigger]] = {
+    "el_salvador": [
+        CalibratedTrigger(
+            name="silking_drought_v1",
+            description=(
+                "SPI-3 < −1.5 AND SMAP root-zone anomaly < −0.5σ during silking "
+                "(DOY 196-227, mid-Jul to mid-Aug)"
+            ),
+            window_doy=(196, 227),
+            spi3_threshold=-1.5,
+            rzsm_threshold=-0.5,
+            severity="high",
+            stats=CalibrationStats(
+                n_years=11,
+                precision=1.00,    precision_ci=(0.34, 1.00),
+                recall=0.67,       recall_ci=(0.21, 0.94),
+                severe_recall=1.00, severe_recall_ci=(0.21, 1.00),
+                fp_per_decade=0.00, fp_per_decade_ci=(0.00, 4.61),
+            ),
         ),
-        window_doy=SILKING_WINDOW,
-        spi3_threshold=-1.5,
-        rzsm_threshold=-0.5,
-        severity="high",
-        stats=CalibrationStats(
-            n_years=11,
-            precision=1.00,    precision_ci=(0.34, 1.00),
-            recall=0.67,       recall_ci=(0.21, 0.94),
-            severe_recall=1.00, severe_recall_ci=(0.21, 1.00),
-            fp_per_decade=0.00, fp_per_decade_ci=(0.00, 4.61),
+    ],
+    "haiti": [
+        CalibratedTrigger(
+            name="silking_drought_v1",
+            description=(
+                "SPI-3 < −1.3 AND SMAP root-zone anomaly < −0.5σ during the "
+                "printemps→été silking window (DOY 152-227, Jun 1 to Aug 15). "
+                "Fires per priority department; alert is raised if any of "
+                "Sud / Sud-Est / Grand'Anse / Nippes / Nord-Ouest / Centre "
+                "crosses both thresholds."
+            ),
+            window_doy=(152, 227),
+            spi3_threshold=-1.3,
+            rzsm_threshold=-0.5,
+            severity="high",
+            stats=CalibrationStats(
+                # See experiments/trigger_calibration_report_ht.md — combined
+                # SPI+SMAP on 11 yrs (2015-2025), 3 labeled positives in window.
+                # Per-dep any-fires scoring (matches runtime semantics).
+                # Catches 2015 (severe) and 2018 (moderate). Misses 2023 —
+                # SPI=-0.59 in worst dep, doesn't cross threshold even though
+                # SMAP showed -1.79σ (rainfall was near-normal in priority
+                # deps despite FEWS-reported NW peninsula impact).
+                # FP/decade is high (2.73) reflecting the noisier HT signal;
+                # the 95% CI is wide given only 11 years of SMAP overlap.
+                n_years=11,
+                precision=0.40,    precision_ci=(0.12, 0.77),
+                recall=0.67,       recall_ci=(0.21, 0.94),
+                severe_recall=1.00, severe_recall_ci=(0.21, 1.00),
+                fp_per_decade=2.73, fp_per_decade_ci=(0.77, 10.96),
+            ),
         ),
-    ),
-]
+    ],
+}
+
+CALIBRATED_TRIGGERS: list[CalibratedTrigger] = TRIGGERS_BY_COUNTRY.get(config.COUNTRY, [])
 
 
 @dataclass
@@ -129,15 +157,24 @@ def _load_per_dep(indicator: str, col: str) -> dict[str, pd.DataFrame]:
     return out
 
 
-def evaluate_history(trigger: CalibratedTrigger = CALIBRATED_TRIGGERS[0]) -> list[FireRecord]:
+def evaluate_history(trigger: CalibratedTrigger | None = None) -> list[FireRecord]:
     """Return one FireRecord per (year, departamento) where the trigger fired.
-    Limited to years where both indicators have data overlapping the window.
+    Restricted to priority departments — matches the calibration's any-fires
+    scoring so the runtime alert means what the report's precision/recall say.
+    Returns [] if no calibrated trigger is defined for the active country.
     """
+    if trigger is None:
+        if not CALIBRATED_TRIGGERS:
+            return []
+        trigger = CALIBRATED_TRIGGERS[0]
     spi = _load_per_dep("chirps", "spi_3")
     rzsm = _load_per_dep("smap", "value_anom_z")
+    priority = set(config.PRIORITY_DEPARTMENTS)
 
     fires: list[FireRecord] = []
     for dep, spi_df in spi.items():
+        if dep not in priority:
+            continue
         rzsm_df = rzsm.get(dep)
         if rzsm_df is None or rzsm_df.empty:
             continue
@@ -170,8 +207,13 @@ def evaluate_history(trigger: CalibratedTrigger = CALIBRATED_TRIGGERS[0]) -> lis
 
 
 def current_status(today: date | None = None,
-                   trigger: CalibratedTrigger = CALIBRATED_TRIGGERS[0]) -> dict:
-    """Return a dashboard-friendly summary of the trigger state."""
+                   trigger: CalibratedTrigger | None = None) -> dict | None:
+    """Return a dashboard-friendly summary of the trigger state.
+    Returns None if no calibrated trigger is defined for the active country."""
+    if trigger is None:
+        if not CALIBRATED_TRIGGERS:
+            return None
+        trigger = CALIBRATED_TRIGGERS[0]
     today = today or config.today()
     fires = evaluate_history(trigger)
     fires_this_year = [f for f in fires if f.year == today.year]

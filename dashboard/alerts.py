@@ -118,6 +118,13 @@ def _make_reading(*, label, value, threshold,
 def banner() -> None:
     """Render the drought-alert summary. Designed for non-technical readers."""
     status = triggers.current_status()
+    if status is None:
+        st.info(
+            "Drought alert thresholds are not yet calibrated for this country. "
+            "Run `COUNTRY=<key> python -m el_nino.experiments.trigger_calibration` "
+            "and bake the recommended config into `etl/triggers.py`."
+        )
+        return
     trig = status["trigger"]
     today = status["today"]
     triggered_this_year = status["fires_this_year"]
@@ -130,19 +137,21 @@ def banner() -> None:
     st.markdown("### Drought alert")
 
     # ---- status pill ----
+    n_fired = len({f['departamento'] for f in triggered_this_year})
+    dep_word = "department" + ("s" if n_fired != 1 else "")
     if triggered_this_year:
         pill_bg, pill_label, pill_sub = RED, "ALERT — drought conditions met", \
-            f"Triggered in {len({f['departamento'] for f in triggered_this_year})} departamento(s) so far this year"
+            f"Triggered in {n_fired} {dep_word} so far this year"
     elif status["window_active"]:
         pill_bg, pill_label, pill_sub = AMBER, "Watching closely", \
-            f"Critical silking weeks are happening now ({window_start_label}–{window_end_label})"
+            f"Critical growth weeks are happening now ({window_start_label}–{window_end_label})"
     elif status["window_passed"]:
-        pill_bg, pill_label, pill_sub = GREEN, "All clear for this year's silking season", \
-            f"The {today.year} silking window passed without the alert triggering."
+        pill_bg, pill_label, pill_sub = GREEN, "All clear for this year's growing season", \
+            f"The {today.year} critical window passed without the alert triggering."
     else:
         days_until = trig.window_doy[0] - today.timetuple().tm_yday
         pill_bg, pill_label, pill_sub = NEUTRAL, "Pre-season — quiet for now", \
-            f"Critical silking weeks start in {days_until} days ({window_start_label})."
+            f"Critical growth weeks start in {days_until} days ({window_start_label})."
 
     st.markdown(
         f"<div style='background-color:{pill_bg};color:white;"
@@ -176,16 +185,19 @@ def banner() -> None:
 
     # ---- plain-language explanation ----
     st.markdown(
-        "**What sets off this alert.** When rainfall has been **very dry for "
-        "the last 3 months** *and* **soil moisture is below normal**, all at the "
-        "same time during the maize **silking weeks** (mid-July to mid-August). "
-        "Silking is when maize is most vulnerable to drought — water stress "
-        "during this window translates directly into yield loss."
+        f"**What sets off this alert.** When rainfall has been **very dry for "
+        f"the last 3 months** *and* **soil moisture is below normal**, all at "
+        f"the same time during the critical growth window "
+        f"(**{window_start_label} to {window_end_label}**). This is when "
+        f"rainfed crops in {config.CC['display_name']} are most vulnerable to "
+        f"drought — water stress during this window translates directly into "
+        f"yield loss in the {config.CC['priority_label'].lower()} "
+        f"({config.CC['priority_display_names']})."
     )
 
     # ---- triggered-this-year details ----
     if triggered_this_year:
-        with st.expander("Show triggered departamentos", expanded=True):
+        with st.expander("Show triggered departments", expanded=True):
             for f in sorted(triggered_this_year, key=lambda r: r["departamento"]):
                 st.markdown(
                     f"- **{f['departamento']}** — rainfall index `{f['spi3_min']:.2f}`, "
@@ -202,21 +214,36 @@ def banner() -> None:
 
         with st.expander(heading):
             if trig.stats is not None:
+                # Pull the severe anchor years from the country's labeled
+                # events so the descriptive copy stays in sync with config.
+                severe_yrs = sorted(
+                    y for y, (sev, _) in config.CC.get("labeled_events", {}).items()
+                    if sev.startswith("severe")
+                )
+                if severe_yrs:
+                    severe_anchor = "(e.g., " + ", ".join(str(y) for y in severe_yrs) + ")"
+                else:
+                    severe_anchor = ""
                 st.markdown(
                     f"""
                     | Metric | Estimate | 95% range |
                     |---|---:|---:|
                     | When triggered, how often there was a real drought event | {s.precision:.0%} | {s.precision_ci[0]:.0%} – {s.precision_ci[1]:.0%} |
                     | Fraction of drought years the alert catches | {s.recall:.0%} | {s.recall_ci[0]:.0%} – {s.recall_ci[1]:.0%} |
-                    | Fraction of *severe* drought years caught (e.g., 2015) | {s.severe_recall:.0%} | {s.severe_recall_ci[0]:.0%} – {s.severe_recall_ci[1]:.0%} |
+                    | Fraction of *severe* drought years caught {severe_anchor} | {s.severe_recall:.0%} | {s.severe_recall_ci[0]:.0%} – {s.severe_recall_ci[1]:.0%} |
                     | False alarms per decade | {s.fp_per_decade:.1f} | {s.fp_per_decade_ci[0]:.1f} – {s.fp_per_decade_ci[1]:.1f} |
 
-                    The thresholds for this alert were chosen by checking which
-                    ones would have correctly flagged the documented El Niño
-                    drought years (especially 2015) without firing in normal
-                    years. With only {s.n_years} years of soil-moisture data, the
-                    margin of error is still wide. Re-run the calibration
-                    annually as more data accumulates.
+                    Thresholds were chosen by checking which would have flagged
+                    the documented El Niño drought years for
+                    {config.CC['display_name']} {severe_anchor} without firing
+                    in normal years. The fire test runs **per department** —
+                    if any one of the {config.CC['priority_label'].lower()}
+                    ({config.CC['priority_display_names']}) crosses both
+                    thresholds, the alert is raised. With only {s.n_years}
+                    years of soil-moisture data, the margin of error is still
+                    wide. Re-run `COUNTRY={config.COUNTRY} python -m
+                    el_nino.experiments.trigger_calibration` annually as more
+                    data accumulates.
                     """
                 )
 
@@ -233,8 +260,9 @@ def banner() -> None:
                 )
                 for y in sorted(by_year, reverse=True):
                     deps = sorted(by_year[y])
+                    dep_word = "department" + ("s" if len(deps) != 1 else "")
                     st.markdown(
-                        f"- **{y}** — {len(deps)} departamento{'s' if len(deps) != 1 else ''}: "
+                        f"- **{y}** — {len(deps)} {dep_word}: "
                         f"{', '.join(deps)}"
                     )
 
