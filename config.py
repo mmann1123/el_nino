@@ -84,8 +84,8 @@ COUNTRIES: dict[str, dict] = {
         "short_code": "HT",
         "gaul_adm0_name": "Haiti",
         "aoi_filename": "departamentos_ht.geojson",
-        "map_center": {"lat": 18.85, "lon": -72.80},
-        "map_zoom": 6.9,
+        "map_center": {"lat": 18.85, "lon": -73.00},
+        "map_zoom": 6.2,
         # Haiti's ADM1 are départements in French (the country's official lang).
         "dept_term": "département",
         "dept_term_plural": "départements",
