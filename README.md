@@ -243,7 +243,7 @@ el_nino/
 │   ├── drought_status.py     # USDM classification + plain-language labels
 │   ├── freshness.py          # data-freshness badges
 │   ├── status.py             # current-status helpers
-│   ├── auth.py               # Streamlit OIDC gate (no-op locally)
+│   ├── auth.py               # Streamlit OIDC gate (disabled by default — public)
 │   ├── refresh_lock.py       # 12-hour cross-user rate limit on "Check for new data"
 │   └── site_footer.py        # GWU mark + data attribution + disclaimer
 ├── experiments/

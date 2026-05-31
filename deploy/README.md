@@ -16,12 +16,18 @@ PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/setup_infra.sh
 gcloud builds submit --config el_nino/deploy/cloudbuild.yaml \
   --substitutions=_REGION=us-central1 .
 
-# 3. Deploy / update the Cloud Run Job
+# 3. Deploy / update the Cloud Run Job (ETL)
 PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/deploy_job.sh
 
 # 4. Create the Cloud Scheduler entries
 PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/schedule.sh
+
+# 5. Deploy the public dashboard Cloud Run Service
+PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/deploy_service.sh
 ```
+
+The dashboard service is deployed with `--allow-unauthenticated` — public,
+no sign-in required. The Cloud Run URL is printed at the end.
 
 ## Haiti
 
@@ -31,6 +37,7 @@ Same scripts, two extra env vars per call:
 COUNTRY=haiti COUNTRY_CODE=ht PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/setup_infra.sh
 COUNTRY=haiti COUNTRY_CODE=ht PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/deploy_job.sh
 COUNTRY=haiti COUNTRY_CODE=ht PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/schedule.sh
+COUNTRY=haiti COUNTRY_CODE=ht PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/deploy_service.sh
 ```
 
 The image is shared across countries; you only need to rebuild it once when the
