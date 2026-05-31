@@ -149,12 +149,13 @@ def _on_dep_dropdown_changed() -> None:
 # widget or by a click on the country map below).
 default_idx = deps_available.index(st.session_state.get("dep_choice", default_dep))
 departamento = st.sidebar.selectbox(
-    "Departamento", deps_available,
+    config.CC["dept_term"].capitalize(), deps_available,
     index=default_idx,
     on_change=_on_dep_dropdown_changed,
     help=(
-        f"Pick a {config.CC['display_name']} department, or 'All (country mean)' "
-        "for a nationwide average. You can also click any department on the map. "
+        f"Pick a {config.CC['display_name']} {config.CC['dept_term']}, "
+        "or 'All (country mean)' for a nationwide average. "
+        f"You can also click any {config.CC['dept_term']} on the map. "
         f"{config.CC['priority_label']} focus: {config.CC['priority_display_names']}."
     ),
 )
@@ -222,9 +223,9 @@ with tabs[0]:
         map_fig = map_view.departamento_status_figure(indicator_name, selected_departamento=departamento)
         if map_fig is not None:
             st.markdown(
-                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all departments**  \n"
+                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all {config.CC['dept_term_plural']}**  \n"
                 "<span style='font-size:0.85em;color:#546e7a;'>"
-                "💡 Click any department to focus the dashboard on it.</span>",
+                f"💡 Click any {config.CC['dept_term']} to focus the dashboard on it.</span>",
                 unsafe_allow_html=True,
             )
             map_event = st.plotly_chart(
@@ -244,7 +245,7 @@ with tabs[0]:
                 if st.button(
                     "🌐 Select All",
                     key="select_all_btn",
-                    help="Switch to the country-mean view across all departments.",
+                    help=f"Switch to the country-mean view across all {config.CC['dept_term_plural']}.",
                     width="stretch",
                 ):
                     if st.session_state.get("dep_choice") != data.ALL:
@@ -342,7 +343,7 @@ with tabs[1]:
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
-        st.info("No data for this indicator/departamento combination.")
+        st.info(f"No data for this indicator/{config.CC['dept_term']} combination.")
     else:
         clim = data.load_climatology(indicator_name, departamento, primary)
         window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)

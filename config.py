@@ -57,6 +57,10 @@ COUNTRIES: dict[str, dict] = {
         "aoi_filename": "departamentos_es.geojson",
         "map_center": {"lat": 13.794, "lon": -88.917},
         "map_zoom": 6.7,
+        # Native term for ADM1 in the country's official language.
+        # Used for user-facing labels and hover tooltips.
+        "dept_term": "departamento",
+        "dept_term_plural": "departamentos",
         "priority_departments": ["Morazan", "San Miguel", "La Union", "Usulutan"],
         "priority_label": "Eastern Dry Corridor",
         "priority_display_names": "Morazán, San Miguel, La Unión, Usulután",
@@ -82,6 +86,9 @@ COUNTRIES: dict[str, dict] = {
         "aoi_filename": "departamentos_ht.geojson",
         "map_center": {"lat": 18.85, "lon": -72.80},
         "map_zoom": 6.9,
+        # Haiti's ADM1 are départements in French (the country's official lang).
+        "dept_term": "département",
+        "dept_term_plural": "départements",
         # Priority departments are the rainfed "dry corridor analog" per
         # el_nino_agricultural_risks.md: southern peninsula + Northwest +
         # Central Plateau. Artibonite is excluded — it's irrigated/buffered.

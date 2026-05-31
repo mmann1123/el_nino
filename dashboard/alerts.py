@@ -138,7 +138,7 @@ def banner() -> None:
 
     # ---- status pill ----
     n_fired = len({f['departamento'] for f in triggered_this_year})
-    dep_word = "department" + ("s" if n_fired != 1 else "")
+    dep_word = config.CC["dept_term_plural"] if n_fired != 1 else config.CC["dept_term"]
     if triggered_this_year:
         pill_bg, pill_label, pill_sub = RED, "ALERT — drought conditions met", \
             f"Triggered in {n_fired} {dep_word} so far this year"
@@ -197,7 +197,7 @@ def banner() -> None:
 
     # ---- triggered-this-year details ----
     if triggered_this_year:
-        with st.expander("Show triggered departments", expanded=True):
+        with st.expander(f"Show triggered {config.CC['dept_term_plural']}", expanded=True):
             for f in sorted(triggered_this_year, key=lambda r: r["departamento"]):
                 st.markdown(
                     f"- **{f['departamento']}** — rainfall index `{f['spi3_min']:.2f}`, "
@@ -236,7 +236,7 @@ def banner() -> None:
                     Thresholds were chosen by checking which would have flagged
                     the documented El Niño drought years for
                     {config.CC['display_name']} {severe_anchor} without firing
-                    in normal years. The fire test runs **per department** —
+                    in normal years. The fire test runs **per {config.CC['dept_term']}** —
                     if any one of the {config.CC['priority_label'].lower()}
                     ({config.CC['priority_display_names']}) crosses both
                     thresholds, the alert is raised. With only {s.n_years}
@@ -260,7 +260,7 @@ def banner() -> None:
                 )
                 for y in sorted(by_year, reverse=True):
                     deps = sorted(by_year[y])
-                    dep_word = "department" + ("s" if len(deps) != 1 else "")
+                    dep_word = config.CC["dept_term_plural"] if len(deps) != 1 else config.CC["dept_term"]
                     st.markdown(
                         f"- **{y}** — {len(deps)} {dep_word}: "
                         f"{', '.join(deps)}"

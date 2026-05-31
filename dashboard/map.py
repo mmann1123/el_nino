@@ -145,7 +145,7 @@ def departamento_status_figure(
         },
         labels={
             "status_label": "Status",
-            "departamento": "Departamento",
+            "departamento": config.CC["dept_term"].capitalize(),
             "z_display": "Anomaly (σ)",
         },
     )
