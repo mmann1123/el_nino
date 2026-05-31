@@ -1,0 +1,28 @@
+# Replaces the stock default.conf at startup. ${PORT} is substituted by
+# nginx's built-in envsubst entrypoint (Cloud Run injects PORT).
+
+server {
+  listen       ${PORT};
+  server_name  _;
+  root         /usr/share/nginx/html;
+  index        index.html;
+
+  # Cache the video + logo (5 MB video is the heavy item)
+  location /static/ {
+    expires 1d;
+    add_header Cache-Control "public, no-transform";
+    access_log off;
+  }
+
+  # Single-page: everything else falls back to index.html
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  # Quiet health-checks
+  location = /favicon.ico {
+    access_log off;
+    log_not_found off;
+    return 204;
+  }
+}

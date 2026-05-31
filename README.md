@@ -24,6 +24,19 @@ country) each backed by its own GCS bucket. A separate static landing page
 Design plan: `~/.claude/plans/i-need-to-design-parsed-hare.md`. Background on
 El Niño impacts: [el_nino_agricultural_risks.md](el_nino_agricultural_risks.md).
 
+## Live deployments
+
+| | URL |
+|---|---|
+| 🏠 Landing (pick a country) | https://drought-33790149295.us-central1.run.app |
+| 🌾 El Salvador | https://es-drought-dash-33790149295.us-central1.run.app |
+| 🌾 Haiti | https://ht-drought-dash-33790149295.us-central1.run.app |
+
+All three are public (no sign-in), served from Cloud Run in
+`haiti-fews-mmann1123`. Daily ETL refreshes run via Cloud Scheduler at 09:00–
+10:15 UTC. The "🔄 Check for new data" button in each dashboard refreshes
+data on-demand, rate-limited to once per 12 hours across all users.
+
 ---
 
 ## Local quickstart
