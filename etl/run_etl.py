@@ -82,56 +82,8 @@ def cmd_prelim(args) -> None:
     UCSB's CHIRPS-Prelim daily TIFFs (~3-day latency instead of GEE's ~28 days).
     """
     config.ensure_dirs()
-    from . import chirps_prelim, storage
-    from .indicators.chirps import aggregate_to_pentad, recompute_spi_for_all_parquets
-
-    # Find latest observed (non-forecast) CHIRPS date currently on disk.
-    chirps_dir = config.RAW_DIR / "chirps"
-    latest: date | None = None
-    if chirps_dir.exists():
-        for f in chirps_dir.glob("*.parquet"):
-            df = storage.read_parquet(f)
-            if df.empty:
-                continue
-            obs = df[~df.get("is_forecast", False).fillna(False)] if "is_forecast" in df.columns else df
-            if obs.empty:
-                continue
-            d_max = pd.to_datetime(obs["date"]).max().date()
-            if latest is None or d_max > latest:
-                latest = d_max
-    if latest is None:
-        latest = date(2026, 4, 29)  # safe fallback
-
-    start = args.start or (latest + timedelta(days=1))
-    end = args.end or (config.today() - timedelta(days=1))
-    if start > end:
-        print(f"Already up to date (latest observed: {latest}, requested {start}..{end})")
-        return
-
-    print(f"Fetching UCSB CHIRPS-Prelim daily {start} -> {end}")
-    daily = chirps_prelim.fetch_window(start, end, on_progress=print)
-    if daily.empty:
-        print("  (no rows returned — UCSB may not have these dates yet)")
-        return
-
-    print(f"  pulled {len(daily)} daily rows")
-
-    # Aggregate to pentads (same convention as the GEE-sourced data).
-    pentads = aggregate_to_pentad(daily)
-    if pentads.empty:
-        print("  (pentad aggregation produced no rows; window too narrow?)")
-        return
-    pentads["is_forecast"] = False
-    # SPI columns will be recomputed below.
-    for col in ("spi_1", "spi_3", "spi_6"):
-        pentads[col] = pd.NA
-
-    for dep, group in pentads.groupby("departamento"):
-        storage.upsert_raw("chirps", dep, group.copy())
-    print(f"  wrote {len(pentads)} pentad rows")
-
-    print("Recomputing SPI across observed + forecast...")
-    recompute_spi_for_all_parquets()
+    from . import chirps_prelim
+    chirps_prelim.run(verbose_logger=print, start=args.start, end=args.end)
     from . import refresh_check
     refresh_check._update_freshness()
     print("Done.")

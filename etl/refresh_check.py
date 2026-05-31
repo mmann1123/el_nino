@@ -50,21 +50,27 @@ def _asset_latest(indicator_name: str) -> date | None:
 
 
 def _local_latest(indicator_name: str) -> date | None:
-    """Latest *observed* (non-forecast) date across all per-dep parquets."""
+    """Latest *observed* (non-forecast) date across the active country's
+    per-dep parquets. Filters out other countries' parquets when ES and HT
+    share one local STORAGE_ROOT — otherwise a wetter/fresher ES record
+    would mask an HT gap (or vice versa)."""
     d = config.RAW_DIR / indicator_name
     if not d.exists():
         return None
+    country = config.country_departments()  # frozenset; empty = no filter
     latest: date | None = None
     for f in d.glob("*.parquet"):
         try:
-            df = pd.read_parquet(f, columns=["date", "is_forecast"])
+            df = pd.read_parquet(f, columns=["date", "departamento", "is_forecast"])
         except Exception:
             try:
-                df = pd.read_parquet(f, columns=["date"])
+                df = pd.read_parquet(f, columns=["date", "departamento"])
                 df["is_forecast"] = False
             except Exception:
                 continue
         if df.empty:
+            continue
+        if country and df["departamento"].iloc[0] not in country:
             continue
         observed = df[~df["is_forecast"].fillna(False)]
         if observed.empty:
@@ -144,6 +150,21 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
                 "behind_days": behind, "fetched_rows": 0, "error": str(e),
             })
 
+    # Fill the CHIRPS V3 → today gap with UCSB CHIRPS-Prelim daily TIFFs.
+    # GEE's V3 'sat' product runs ~28 days behind; without this step the
+    # dashboard chart shows a multi-week dead zone before the GFS forecast.
+    from . import chirps_prelim
+    try:
+        prelim_rows = chirps_prelim.run(verbose_logger=verbose_logger)
+    except Exception as e:
+        verbose_logger(f"❌ prelim: failed — {e}")
+        prelim_rows = 0
+    results.append({
+        "indicator": "chirps-prelim",
+        "asset_latest": None, "local_latest": None,
+        "behind_days": 0, "fetched_rows": prelim_rows,
+    })
+
     # Refresh the 15-day GFS rainfall forecast. New issuance every day, so
     # the button should always pull it — cheap enough (one GFS pull, ~30 rows).
     forecast_rows = _refresh_forecast(verbose_logger)
@@ -154,7 +175,8 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
     })
 
     # CHIRPS SPI needs a recompute whenever new observed OR forecast pentads
-    # landed (forecast pentads need SPI attached to render on the chart).
+    # landed. prelim.run() already recomputes internally, so we only need to
+    # re-trigger here if the GEE catch-up or the GFS forecast added rows.
     chirps_changed = any(
         r["indicator"] in ("chirps", "chirps-forecast") and r["fetched_rows"] > 0
         for r in results
