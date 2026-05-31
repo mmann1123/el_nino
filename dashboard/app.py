@@ -24,7 +24,7 @@ import streamlit as st  # noqa: E402
 from el_nino import config  # noqa: E402
 from el_nino.etl import enso  # noqa: E402
 from el_nino.etl.indicators import INDICATORS  # noqa: E402
-from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, site_footer, status as status_view  # noqa: E402
+from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, refresh_lock, site_footer, status as status_view  # noqa: E402
 
 st.set_page_config(
     page_title=f"{config.CC['display_name']} Drought Monitor",
@@ -178,22 +178,47 @@ show_forecast = st.sidebar.toggle(
 )
 
 # Smart reload: checks the source assets for new data and reports up-to-date status.
-reload_clicked = st.sidebar.button("🔄 Check for new data", help="Queries Earth Engine for the latest available date of each indicator, compares to local data, and fetches any gap.")
-if reload_clicked:
-    with st.sidebar.status("Checking source assets…", expanded=True) as status:
-        try:
-            from el_nino.etl import refresh_check
-            results = refresh_check.run(verbose_logger=lambda m: status.write(m))
-            any_behind = any(r["behind_days"] > 0 for r in results)
-            if any_behind:
-                status.update(label="Found new data — fetched and merged.", state="complete")
-            else:
-                status.update(label="Already up to date.", state="complete")
-            st.cache_data.clear()
-        except Exception as e:
-            status.update(label=f"Failed: {e}", state="error")
+# Rate-limited to once per 12h across all users (lock file in STORAGE_ROOT),
+# so a busy session doesn't hammer GEE/UCSB. The daily scheduler runs the
+# same refresh automatically; the button is for interactive freshness.
+_refresh_allowed, _refresh_last, _refresh_next = refresh_lock.check_allowed()
+if _refresh_allowed:
+    reload_clicked = st.sidebar.button(
+        "🔄 Check for new data",
+        help=(
+            "Queries Earth Engine for the latest data, pulls UCSB CHIRPS-Prelim "
+            "to fill the recent gap, and refreshes the 15-day GFS rainfall "
+            "forecast. Limited to once per 12 hours across all users."
+        ),
+    )
     if reload_clicked:
+        with st.sidebar.status("Checking source assets…", expanded=True) as status:
+            try:
+                from el_nino.etl import refresh_check
+                results = refresh_check.run(verbose_logger=lambda m: status.write(m))
+                any_changed = any(r["fetched_rows"] > 0 for r in results)
+                if any_changed:
+                    status.update(label="Found new data — fetched and merged.", state="complete")
+                else:
+                    status.update(label="Already up to date.", state="complete")
+                refresh_lock.record_refresh()
+                st.cache_data.clear()
+            except Exception as e:
+                status.update(label=f"Failed: {e}", state="error")
         st.rerun()
+else:
+    st.sidebar.button(
+        "🔄 Check for new data",
+        disabled=True,
+        help=(
+            f"Already refreshed "
+            f"{refresh_lock.format_relative(_refresh_last)}. "
+            f"Next refresh available {refresh_lock.format_relative(_refresh_next)}."
+        ),
+    )
+    st.sidebar.caption(
+        f"⏱️ Daily refresh used · next available {refresh_lock.format_relative(_refresh_next)}"
+    )
 
 # Refresh timestamps directly under the "Check for new data" button.
 freshness.sidebar_refresh_caption()
@@ -526,9 +551,11 @@ with st.expander("About this data"):
     **Drought classification:** U.S. Drought Monitor SPI bins
     (D0 ≤ −1.0, D1 ≤ −1.3, D2 ≤ −1.6, D3 ≤ −2.0, D4 ≤ −2.5).
 
-    Alert thresholds are pending calibration against historical crop-loss events
-    (1982-83, 1997-98, 2015-16, 2023-24) before being turned on — see
-    `el_nino/experiments/trigger_calibration.ipynb`.
+    **Alert thresholds** are country-specific and calibrated against historical
+    El Niño drought events for {config.CC['display_name']} — see the
+    "How confident is this alert?" expander under the Drought alert section.
+    Re-run `COUNTRY={config.COUNTRY} python -m el_nino.experiments.trigger_calibration`
+    after each annual data refresh to update the calibration.
     """)
 
 # ---------- Site footer (attribution, data sources, GWU mark) ----------
