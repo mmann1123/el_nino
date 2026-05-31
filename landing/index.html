@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Real-time drought and El Niño monitoring for El Salvador and Haiti.">
+  <title>Drought &amp; El Niño Monitor</title>
+
+  <style>
+    /* ---------- reset + base ---------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, system-ui, sans-serif;
+      font-weight: 400;
+      color: #fff;
+      background: #2a1c12;       /* fallback while video loads */
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* ---------- video background + dark gradient overlay ---------- */
+    .video-bg {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: -2;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.70) 100%);
+      z-index: -1;
+    }
+
+    /* ---------- hero layout ---------- */
+    .hero-section {
+      min-height: 100vh;
+      min-height: 100svh;          /* iOS safe-viewport */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem 4rem;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    .hero {
+      margin-bottom: 3rem;
+      max-width: 40rem;
+    }
+    h1 {
+      font-size: clamp(2rem, 5.5vw, 3.5rem);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+      text-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+    }
+    .subtitle {
+      font-size: clamp(1rem, 2.1vw, 1.2rem);
+      font-weight: 300;
+      opacity: 0.88;
+      line-height: 1.55;
+      max-width: 32rem;
+      margin: 0 auto;
+    }
+
+    /* ---------- country cards ---------- */
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 38rem;
+    }
+    @media (min-width: 640px) {
+      .cards { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 2.25rem 1.5rem;
+      background: rgba(255, 255, 255, 0.09);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+              backdrop-filter: blur(14px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 14px;
+      color: #fff;
+      text-decoration: none;
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                  background 0.25s,
+                  border-color 0.25s,
+                  box-shadow 0.25s;
+    }
+    .card:hover,
+    .card:focus-visible {
+      transform: translateY(-4px);
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.30);
+      box-shadow: 0 18px 44px -10px rgba(0, 0, 0, 0.45);
+      outline: none;
+    }
+    .card:active { transform: translateY(-1px); }
+    .card .flag {
+      font-size: 3rem;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+      filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+    }
+    .card h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+    }
+    .card .meta {
+      font-size: 0.875rem;
+      font-weight: 400;
+      opacity: 0.72;
+    }
+
+    /* ---------- site footer ---------- */
+    .site-footer {
+      position: relative;
+      z-index: 1;
+      background: #f7f5f0;
+      color: #3b3a36;
+      padding: 2.25rem 1.5rem;
+      font-size: 0.85rem;
+      line-height: 1.55;
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    .footer-inner {
+      max-width: 64rem;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      align-items: center;
+      text-align: center;
+    }
+    @media (min-width: 768px) {
+      .footer-inner {
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: space-between;
+        text-align: left;
+        gap: 2.5rem;
+      }
+    }
+    .footer-text { max-width: 44rem; }
+    .footer-text a {
+      color: #1a4a6e;
+      text-decoration: underline;
+      text-decoration-color: rgba(26, 74, 110, 0.35);
+      text-underline-offset: 2px;
+      transition: text-decoration-color 0.15s;
+    }
+    .footer-text a:hover { text-decoration-color: #1a4a6e; }
+
+    /* GWU mark — clean text treatment; swap to official SVG when available */
+    .gwu-mark {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+    .gwu-monogram {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 3rem;
+      height: 3rem;
+      background: #033C5A;            /* GW Columbian blue */
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: 0.04em;
+      border-radius: 3px;
+    }
+    .gwu-lines { line-height: 1.3; }
+    .gwu-lines strong {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #2a2a2a;
+    }
+    .gwu-lines span {
+      display: block;
+      font-size: 0.72rem;
+      color: #6b6b6b;
+    }
+
+    /* ---------- reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+      .video-bg { display: none; }
+      .overlay { background: linear-gradient(135deg, #2c1810 0%, #5a3a25 60%, #8b6f47 100%); }
+      .card { transition: none; }
+      .card:hover, .card:focus-visible { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <video class="video-bg" autoplay muted loop playsinline preload="auto" aria-hidden="true">
+    <source src="/static/8239246-hd_1280_720_25fps.mp4" type="video/mp4">
+  </video>
+  <div class="overlay" aria-hidden="true"></div>
+
+  <section class="hero-section">
+    <div class="hero">
+      <h1>Drought &amp; El Niño Monitor</h1>
+      <p class="subtitle">
+        Track rainfall, soil moisture, and crop water stress in real time.
+        Choose a country to begin.
+      </p>
+    </div>
+
+    <nav class="cards" aria-label="Choose a country">
+      <a class="card" href="__ES_URL__" aria-label="Open El Salvador drought monitor">
+        <span class="flag" aria-hidden="true">🇸🇻</span>
+        <h2>El Salvador</h2>
+        <span class="meta">14 departamentos</span>
+      </a>
+      <a class="card" href="__HT_URL__" aria-label="Open Haiti drought monitor">
+        <span class="flag" aria-hidden="true">🇭🇹</span>
+        <h2>Haiti</h2>
+        <span class="meta">10 départements</span>
+      </a>
+    </nav>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p class="footer-text">
+        Created by <a href="https://geography.columbian.gwu.edu/michael-mann" rel="noopener">Michael Mann, PhD</a>.
+        Data sources: rainfall &mdash;
+        <a href="https://www.chc.ucsb.edu/data/chirps" rel="noopener">CHIRPS</a> (UCSB Climate Hazards Center)
+        and <a href="https://gpm.nasa.gov/data/imerg" rel="noopener">IMERG</a> (NASA);
+        soil moisture &mdash;
+        <a href="https://smap.jpl.nasa.gov/" rel="noopener">SMAP L4</a> (NASA);
+        evapotranspiration &mdash;
+        <a href="https://wapor.apps.fao.org/" rel="noopener">WAPOR</a> (FAO);
+        El Ni&ntilde;o index &mdash;
+        <a href="https://origin.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php" rel="noopener">ONI</a> (NOAA);
+        administrative boundaries &mdash; FAO GAUL.
+        This site is independent and not affiliated with or endorsed by any data provider.
+        Indicators and forecasts are produced by this dashboard and are provided without
+        warranty of accuracy or fitness for any purpose.
+      </p>
+      <div class="gwu-mark" aria-label="The George Washington University, Department of Geography &amp; Environment">
+        <span class="gwu-monogram" aria-hidden="true">GW</span>
+        <span class="gwu-lines">
+          <strong>Department of Geography &amp; Environment</strong>
+          <span>Columbian College of Arts &amp; Sciences</span>
+        </span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

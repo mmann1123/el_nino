@@ -144,14 +144,49 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
                 "behind_days": behind, "fetched_rows": 0, "error": str(e),
             })
 
-    # CHIRPS SPI needs a recompute whenever new pentads landed.
-    if any(r["indicator"] == "chirps" and r["fetched_rows"] > 0 for r in results):
+    # Refresh the 15-day GFS rainfall forecast. New issuance every day, so
+    # the button should always pull it — cheap enough (one GFS pull, ~30 rows).
+    forecast_rows = _refresh_forecast(verbose_logger)
+    results.append({
+        "indicator": "chirps-forecast",
+        "asset_latest": None, "local_latest": None,
+        "behind_days": 0, "fetched_rows": forecast_rows,
+    })
+
+    # CHIRPS SPI needs a recompute whenever new observed OR forecast pentads
+    # landed (forecast pentads need SPI attached to render on the chart).
+    chirps_changed = any(
+        r["indicator"] in ("chirps", "chirps-forecast") and r["fetched_rows"] > 0
+        for r in results
+    )
+    if chirps_changed:
         verbose_logger("🔁 Recomputing CHIRPS SPI…")
         recompute_spi_for_all_parquets()
 
     # Update freshness.json from whatever's now on disk.
     _update_freshness()
     return results
+
+
+def _refresh_forecast(verbose_logger: Callable[[str], None]) -> int:
+    """Pull the latest GFS 15-day forecast and merge into CHIRPS parquets.
+    Returns the number of forecast rows written (0 on failure)."""
+    from .indicators.chirps import CHIRPS
+    issuance = date.today() - timedelta(days=1)
+    verbose_logger(f"🌧️  forecast: pulling GFS 15-day (issuance {issuance})")
+    try:
+        df = CHIRPS().fetch_forecast(issuance)
+    except Exception as e:
+        verbose_logger(f"❌ forecast: fetch failed: {e}")
+        return 0
+    if df.empty:
+        verbose_logger("   (no forecast data returned)")
+        return 0
+    for dep, group in df.groupby("departamento"):
+        storage.upsert_raw("chirps", dep, group.copy())
+    verbose_logger(f"   wrote {len(df)} forecast pentads across "
+                   f"{df['departamento'].nunique()} departamentos")
+    return int(len(df))
 
 
 def _update_freshness() -> None:

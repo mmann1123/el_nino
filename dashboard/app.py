@@ -24,7 +24,7 @@ import streamlit as st  # noqa: E402
 from el_nino import config  # noqa: E402
 from el_nino.etl import enso  # noqa: E402
 from el_nino.etl.indicators import INDICATORS  # noqa: E402
-from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, status as status_view  # noqa: E402
+from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, site_footer, status as status_view  # noqa: E402
 
 st.set_page_config(
     page_title=f"{config.CC['display_name']} Drought Monitor",
@@ -529,3 +529,6 @@ with st.expander("About this data"):
     (1982-83, 1997-98, 2015-16, 2023-24) before being turned on — see
     `el_nino/experiments/trigger_calibration.ipynb`.
     """)
+
+# ---------- Site footer (attribution, data sources, GWU mark) ----------
+site_footer.render()
