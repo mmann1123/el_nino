@@ -28,14 +28,17 @@ El Niño impacts: [el_nino_agricultural_risks.md](el_nino_agricultural_risks.md)
 
 | | URL |
 |---|---|
-| 🏠 Landing (pick a country) | https://drought-33790149295.us-central1.run.app |
-| 🌾 El Salvador | https://es-drought-dash-33790149295.us-central1.run.app |
-| 🌾 Haiti | https://ht-drought-dash-33790149295.us-central1.run.app |
+| 🏠 Landing (pick a country) | **https://drought.pygis.io** |
+| 🌾 El Salvador | **https://es.drought.pygis.io** |
+| 🌾 Haiti | **https://ht.drought.pygis.io** |
 
 All three are public (no sign-in), served from Cloud Run in
-`haiti-fews-mmann1123`. Daily ETL refreshes run via Cloud Scheduler at 09:00–
-10:15 UTC. The "🔄 Check for new data" button in each dashboard refreshes
-data on-demand, rate-limited to once per 12 hours across all users.
+`haiti-fews-mmann1123` with Google-managed TLS certs, fronted by custom
+domains under `pygis.io`. The original run.app URLs
+(`*-33790149295.us-central1.run.app`) still work as fallbacks. Daily ETL
+refreshes run via Cloud Scheduler at 09:00–10:15 UTC. The "🔄 Check for new
+data" button in each dashboard refreshes data on-demand, rate-limited to once
+per 12 hours across all users.
 
 ---
 
