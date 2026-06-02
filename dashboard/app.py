@@ -24,10 +24,10 @@ import streamlit as st  # noqa: E402
 from el_nino import config  # noqa: E402
 from el_nino.etl import enso  # noqa: E402
 from el_nino.etl.indicators import INDICATORS  # noqa: E402
-from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, status as status_view  # noqa: E402
+from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, refresh_lock, site_footer, status as status_view  # noqa: E402
 
 st.set_page_config(
-    page_title="El Salvador Drought Monitor",
+    page_title=f"{config.CC['display_name']} Drought Monitor",
     page_icon="🌾",
     layout="wide",
 )
@@ -48,7 +48,7 @@ INDICATOR_HELP = {
         "location and time of year. **0 = typical**, **−1 = moderate drought**, "
         "**−1.5 = severe drought**. Source: CHIRPS v3. "
         "**15-day forecast** is from NOAA GFS 0.25° (raw, not bias-corrected to "
-        "CHIRPS — GFS tends to over-predict in Central America)."
+        "CHIRPS — GFS tends to over-predict in the tropics)."
     ),
     "smap": (
         "**Root-zone soil moisture (0–100 cm)** — water available to maize roots. "
@@ -124,10 +124,10 @@ def _header_icon_html() -> str:
 st.sidebar.markdown(
     "<h2 style='margin-top:0;margin-bottom:0.6em;white-space:nowrap;"
     "font-size:1.25em;display:flex;align-items:center;'>"
-    f"{_header_icon_html()}ES Drought Monitor</h2>",
+    f"{_header_icon_html()}{config.CC['short_code']} Drought Monitor</h2>",
     unsafe_allow_html=True,
 )
-st.sidebar.caption("El Salvador maize-season indicators")
+st.sidebar.caption(f"{config.CC['display_name']} {config.CC['crop_focus_caption']}")
 
 deps_available = data.list_departamentos()
 if not deps_available:
@@ -149,13 +149,14 @@ def _on_dep_dropdown_changed() -> None:
 # widget or by a click on the country map below).
 default_idx = deps_available.index(st.session_state.get("dep_choice", default_dep))
 departamento = st.sidebar.selectbox(
-    "Departamento", deps_available,
+    config.CC["dept_term"].capitalize(), deps_available,
     index=default_idx,
     on_change=_on_dep_dropdown_changed,
     help=(
-        "Pick an El Salvador departamento, or 'All (country mean)' for a "
-        "nationwide average. You can also click any departamento on the map. "
-        "Eastern Dry Corridor focus: Morazán, San Miguel, La Unión, Usulután."
+        f"Pick a {config.CC['display_name']} {config.CC['dept_term']}, "
+        "or 'All (country mean)' for a nationwide average. "
+        f"You can also click any {config.CC['dept_term']} on the map. "
+        f"{config.CC['priority_label']} focus: {config.CC['priority_display_names']}."
     ),
 )
 # Persist the dropdown's current value so the index= computation works on
@@ -177,22 +178,47 @@ show_forecast = st.sidebar.toggle(
 )
 
 # Smart reload: checks the source assets for new data and reports up-to-date status.
-reload_clicked = st.sidebar.button("🔄 Check for new data", help="Queries Earth Engine for the latest available date of each indicator, compares to local data, and fetches any gap.")
-if reload_clicked:
-    with st.sidebar.status("Checking source assets…", expanded=True) as status:
-        try:
-            from el_nino.etl import refresh_check
-            results = refresh_check.run(verbose_logger=lambda m: status.write(m))
-            any_behind = any(r["behind_days"] > 0 for r in results)
-            if any_behind:
-                status.update(label="Found new data — fetched and merged.", state="complete")
-            else:
-                status.update(label="Already up to date.", state="complete")
-            st.cache_data.clear()
-        except Exception as e:
-            status.update(label=f"Failed: {e}", state="error")
+# Rate-limited to once per 12h across all users (lock file in STORAGE_ROOT),
+# so a busy session doesn't hammer GEE/UCSB. The daily scheduler runs the
+# same refresh automatically; the button is for interactive freshness.
+_refresh_allowed, _refresh_last, _refresh_next = refresh_lock.check_allowed()
+if _refresh_allowed:
+    reload_clicked = st.sidebar.button(
+        "🔄 Check for new data",
+        help=(
+            "Queries Earth Engine for the latest data, pulls UCSB CHIRPS-Prelim "
+            "to fill the recent gap, and refreshes the 15-day GFS rainfall "
+            "forecast. Limited to once per 12 hours across all users."
+        ),
+    )
     if reload_clicked:
+        with st.sidebar.status("Checking source assets…", expanded=True) as status:
+            try:
+                from el_nino.etl import refresh_check
+                results = refresh_check.run(verbose_logger=lambda m: status.write(m))
+                any_changed = any(r["fetched_rows"] > 0 for r in results)
+                if any_changed:
+                    status.update(label="Found new data — fetched and merged.", state="complete")
+                else:
+                    status.update(label="Already up to date.", state="complete")
+                refresh_lock.record_refresh()
+                st.cache_data.clear()
+            except Exception as e:
+                status.update(label=f"Failed: {e}", state="error")
         st.rerun()
+else:
+    st.sidebar.button(
+        "🔄 Check for new data",
+        disabled=True,
+        help=(
+            f"Already refreshed "
+            f"{refresh_lock.format_relative(_refresh_last)}. "
+            f"Next refresh available {refresh_lock.format_relative(_refresh_next)}."
+        ),
+    )
+    st.sidebar.caption(
+        f"⏱️ Daily refresh used · next available {refresh_lock.format_relative(_refresh_next)}"
+    )
 
 # Refresh timestamps directly under the "Check for new data" button.
 freshness.sidebar_refresh_caption()
@@ -222,9 +248,9 @@ with tabs[0]:
         map_fig = map_view.departamento_status_figure(indicator_name, selected_departamento=departamento)
         if map_fig is not None:
             st.markdown(
-                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all 14 departamentos**  \n"
+                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all {config.CC['dept_term_plural']}**  \n"
                 "<span style='font-size:0.85em;color:#546e7a;'>"
-                "💡 Click any departamento to focus the dashboard on it.</span>",
+                f"💡 Click any {config.CC['dept_term']} to focus the dashboard on it.</span>",
                 unsafe_allow_html=True,
             )
             map_event = st.plotly_chart(
@@ -244,7 +270,7 @@ with tabs[0]:
                 if st.button(
                     "🌐 Select All",
                     key="select_all_btn",
-                    help="Switch to the country-mean view across all 14 departamentos.",
+                    help=f"Switch to the country-mean view across all {config.CC['dept_term_plural']}.",
                     width="stretch",
                 ):
                     if st.session_state.get("dep_choice") != data.ALL:
@@ -342,7 +368,7 @@ with tabs[1]:
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
-        st.info("No data for this indicator/departamento combination.")
+        st.info(f"No data for this indicator/{config.CC['dept_term']} combination.")
     else:
         clim = data.load_climatology(indicator_name, departamento, primary)
         window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)
@@ -515,7 +541,7 @@ with st.expander("About this data"):
     st.markdown(f"""
     **Indicators** (refresh cadence in parentheses):
     - **CHIRPS v3** rainfall + SPI-1/3/6 ({INDICATORS['chirps'].freshness.expected_cadence_days} days)
-    - **NOAA GFS0P25** 15-day rainfall forecast (daily refresh, uncalibrated — GFS over-predicts in Central America)
+    - **NOAA GFS0P25** 15-day rainfall forecast (daily refresh, uncalibrated — GFS over-predicts in the tropics)
     - **SMAP L4** root-zone soil moisture ({INDICATORS['smap'].freshness.expected_cadence_days} days)
     - **FAO WAPOR v3** L1 AETI (dekadal, ~300 m) ({INDICATORS['wapor'].freshness.expected_cadence_days} days)
     - **IMERG-Late V07** daily rainfall ({INDICATORS['imerg'].freshness.expected_cadence_days} day)
@@ -525,7 +551,12 @@ with st.expander("About this data"):
     **Drought classification:** U.S. Drought Monitor SPI bins
     (D0 ≤ −1.0, D1 ≤ −1.3, D2 ≤ −1.6, D3 ≤ −2.0, D4 ≤ −2.5).
 
-    Alert thresholds are pending calibration against historical crop-loss events
-    (1982-83, 1997-98, 2015-16, 2023-24) before being turned on — see
-    `el_nino/experiments/trigger_calibration.ipynb`.
+    **Alert thresholds** are country-specific and calibrated against historical
+    El Niño drought events for {config.CC['display_name']} — see the
+    "How confident is this alert?" expander under the Drought alert section.
+    Re-run `COUNTRY={config.COUNTRY} python -m el_nino.experiments.trigger_calibration`
+    after each annual data refresh to update the calibration.
     """)
+
+# ---------- Site footer (attribution, data sources, GWU mark) ----------
+site_footer.render()

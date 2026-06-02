@@ -150,6 +150,71 @@ def fetch_window(start: date, end: date,
     return pd.DataFrame(rows).sort_values(["departamento", "date"]).reset_index(drop=True)
 
 
+def run(verbose_logger=print, start: date | None = None, end: date | None = None) -> int:
+    """Orchestrate a prelim fill end-to-end: compute the date gap for the
+    active country, pull UCSB TIFFs, aggregate to pentads, upsert into the
+    chirps parquets, recompute SPI across the full record.
+
+    Returns the number of pentad rows written. Safe to call repeatedly —
+    no-ops if there's no gap to fill.
+    """
+    from datetime import timedelta
+    from .. import config
+    from . import storage
+    from .indicators.chirps import aggregate_to_pentad, recompute_spi_for_all_parquets
+
+    # Find latest observed CHIRPS date for the active country.
+    chirps_dir = config.RAW_DIR / "chirps"
+    country_deps = config.country_departments()
+    latest: date | None = None
+    if chirps_dir.exists():
+        for f in chirps_dir.glob("*.parquet"):
+            try:
+                df = storage.read_parquet(f)
+            except Exception:
+                continue
+            if df.empty:
+                continue
+            if country_deps and df["departamento"].iloc[0] not in country_deps:
+                continue
+            obs = df[~df.get("is_forecast", False).fillna(False)] if "is_forecast" in df.columns else df
+            if obs.empty:
+                continue
+            d_max = pd.to_datetime(obs["date"]).max().date()
+            if latest is None or d_max > latest:
+                latest = d_max
+    if latest is None:
+        verbose_logger("⚠️  prelim: no local CHIRPS observations — run a full backfill first")
+        return 0
+
+    s = start or (latest + timedelta(days=1))
+    e = end or (config.today() - timedelta(days=1))
+    if s > e:
+        verbose_logger(f"✅ prelim: gap already closed (local latest {latest}, requested {s}..{e})")
+        return 0
+
+    verbose_logger(f"🧩 prelim: filling gap {s} → {e} from UCSB CHIRPS-Prelim")
+    daily = fetch_window(s, e, on_progress=verbose_logger)
+    if daily.empty:
+        verbose_logger("   (no rows returned — UCSB may not have these dates yet)")
+        return 0
+    verbose_logger(f"   pulled {len(daily)} daily rows")
+
+    pentads = aggregate_to_pentad(daily)
+    if pentads.empty:
+        verbose_logger("   (pentad aggregation produced no rows)")
+        return 0
+    pentads["is_forecast"] = False
+    for col in ("spi_1", "spi_3", "spi_6"):
+        pentads[col] = pd.NA
+
+    for dep, group in pentads.groupby("departamento"):
+        storage.upsert_raw("chirps", dep, group.copy())
+    verbose_logger(f"   wrote {len(pentads)} pentad rows; recomputing SPI…")
+    recompute_spi_for_all_parquets()
+    return int(len(pentads))
+
+
 def _prune_cache(keep: int = 3) -> int:
     """Delete cached TIFs beyond the `keep` most recent (by filename date).
     Filenames embed YYYY.MM.DD so lexical sort == chronological. Returns count deleted."""

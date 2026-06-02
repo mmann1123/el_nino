@@ -22,7 +22,9 @@ COPY el_nino /app/el_nino
 
 ENV PYTHONPATH=/app
 ENV STORAGE_ROOT=/mnt/gcs
-ENV AUTH_MODE=oidc
+# Public dashboards — no sign-in gate. Set AUTH_MODE=oidc + ALLOWED_EMAILS at
+# deploy time to opt back in to the Streamlit OIDC gate (see dashboard/auth.py).
+ENV AUTH_MODE=disabled
 ENV PORT=8080
 
 # Default to the dashboard. The Cloud Run Job overrides with a `python -m ...` command.

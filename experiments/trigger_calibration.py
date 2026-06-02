@@ -1,24 +1,25 @@
 """Trigger calibration against labeled historical El Niño impact events.
 
+Country-aware: priority departments, silking window, and labeled events are
+read from `config.CC` so the same sweep runs for ES (default) and HT
+(COUNTRY=haiti). Run with:
+
+    python -m el_nino.experiments.trigger_calibration                # ES
+    COUNTRY=haiti python -m el_nino.experiments.trigger_calibration  # HT
+
 Inputs:
   - SPI-3 (CHIRPS, 1981+)   — long baseline, single-indicator triggers
   - RZSM anomaly (SMAP, 2015+) — short baseline, for confirmation
   - ETa anomaly (WAPOR, 2018+) — short baseline, confirmation
 
-Labels (from el_nino/el_nino_agricultural_risks.md):
-  Severe positives:   2015 (60% maize / 80% beans loss, Dry Corridor)
-  Moderate positives: 1997, 2002, 2009, 2014, 2018, 2023
-  Negatives:          all neutral / La Niña / non-event years 1981-2024
-
 Method:
-  Aggregate the four eastern Dry Corridor departamentos (Morazán, San Miguel,
-  La Unión, Usulután) by mean. For each candidate threshold + window, ask:
-  did SPI-3 (or the AND of SPI-3 + RZSM) cross below the threshold during the
-  silking window (mid-Jul to mid-Aug, DOY 196-227)? Score precision / recall
-  / lead-time / false-positive rate vs the labels.
+  Aggregate the priority departments by mean. For each candidate threshold +
+  window, ask: did SPI-3 (or the AND of SPI-3 + RZSM) cross below the
+  threshold during the silking window? Score precision / recall / lead-time /
+  false-positive rate against the labeled events.
 
 Output:
-  el_nino/experiments/trigger_calibration_report.md
+  el_nino/experiments/trigger_calibration_report_{country_code}.md
 """
 
 from __future__ import annotations
@@ -38,22 +39,11 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from el_nino import config  # noqa: E402
 
-DRY_CORRIDOR = ["Morazan", "San Miguel", "La Union", "Usulutan"]
-
-SILKING_DOY_START = 196   # mid-July
-SILKING_DOY_END = 227     # mid-August
+PRIORITY_DEPARTMENTS = config.PRIORITY_DEPARTMENTS
+SILKING_DOY_START, SILKING_DOY_END = config.CC["silking_window"]
 DEKAD_FOLLOWING = 10      # days after window-end to look for ETa confirmation
 
-# (year, label, note) — drawn from el_nino_agricultural_risks.md
-LABELED_EVENTS: dict[int, tuple[str, str]] = {
-    1997: ("severe-moderate", "Super El Niño; FAO 'considerably below-average' 2nd-season maize"),
-    2002: ("moderate",        "Moderate El Niño"),
-    2009: ("moderate",        "Moderate El Niño"),
-    2014: ("moderate",        "Weak El Niño precursor; CHIRPS deficits documented late summer"),
-    2015: ("severe",          "Very Strong El Niño; 60% maize / 80% beans loss in Dry Corridor"),
-    2018: ("moderate",        "Weak El Niño; postrera impact even at weak strength (FAO 2018)"),
-    2023: ("moderate",        "Strong El Niño; one-month delay to postrera; 25%+ subsistence yield reduction"),
-}
+LABELED_EVENTS: dict[int, tuple[str, str]] = config.CC["labeled_events"]
 POSITIVE_YEARS = set(LABELED_EVENTS.keys())
 
 
@@ -69,9 +59,15 @@ class TriggerConfig:
 
 
 def load_indicator(indicator: str, value_col: str) -> pd.DataFrame:
-    """Load and average the eastern Dry Corridor for a given indicator."""
+    """Load per-department time series for the priority departments.
+
+    Returns a long DataFrame with columns: date, year, doy, departamento, value.
+    Per-dep granularity preserves regional heterogeneity — the evaluators below
+    fire per (year, dep) and aggregate to a binary 'any priority dep fired this
+    year' for binary scoring against the labeled events.
+    """
     frames = []
-    for dep in DRY_CORRIDOR:
+    for dep in PRIORITY_DEPARTMENTS:
         f = config.RAW_DIR / indicator / f"{dep.replace(' ', '_')}.parquet"
         if not f.exists():
             continue
@@ -82,17 +78,12 @@ def load_indicator(indicator: str, value_col: str) -> pd.DataFrame:
         df["date"] = pd.to_datetime(df["date"])
         df["year"] = df["date"].dt.year
         df["doy"] = df["date"].dt.dayofyear
-        frames.append(df[["date", "year", "doy", value_col]])
+        df["departamento"] = dep
+        frames.append(df[["date", "year", "doy", "departamento", value_col]]
+                      .rename(columns={value_col: "value"}))
     if not frames:
         return pd.DataFrame()
-    full = pd.concat(frames, ignore_index=True)
-    # Average across departamentos by (date)
-    agg = full.groupby("date", as_index=False).agg(
-        year=("year", "first"),
-        doy=("doy", "first"),
-        value=(value_col, "mean"),
-    )
-    return agg.sort_values("date").reset_index(drop=True)
+    return pd.concat(frames, ignore_index=True).sort_values(["departamento", "date"]).reset_index(drop=True)
 
 
 def years_available(df: pd.DataFrame, doy_window: tuple[int, int]) -> set[int]:
@@ -102,71 +93,74 @@ def years_available(df: pd.DataFrame, doy_window: tuple[int, int]) -> set[int]:
     return set(in_window["year"].unique())
 
 
+def _per_dep_min(df: pd.DataFrame, year: int, window: tuple[int, int]) -> pd.Series:
+    """Return Series of {dep: min(value)} across the window for a given year.
+    Empty/all-NaN deps are omitted."""
+    sub = df[(df["year"] == year) &
+             (df["doy"] >= window[0]) & (df["doy"] <= window[1])]
+    if sub.empty:
+        return pd.Series(dtype=float)
+    return sub.groupby("departamento")["value"].min().dropna()
+
+
 def evaluate_spi_only(spi: pd.DataFrame, cfg: TriggerConfig) -> dict:
-    """Single-indicator (SPI-3) trigger. Used for the long-baseline analysis."""
+    """Single-indicator (SPI-3) trigger.
+
+    Per-department evaluation: a year fires if ANY priority department's
+    SPI-3 minimum during the window falls below the threshold.
+    """
     years = sorted(years_available(spi, cfg.window))
     fires: dict[int, dict] = {}
     for y in years:
-        sub = spi[(spi["year"] == y) &
-                  (spi["doy"] >= cfg.window[0]) &
-                  (spi["doy"] <= cfg.window[1])]
-        if sub.empty or sub["value"].dropna().empty:
+        per_dep = _per_dep_min(spi, y, cfg.window)
+        if per_dep.empty:
             continue
-        min_val = sub["value"].min()
-        idx_min = sub["value"].idxmin()
-        fire = bool(min_val < cfg.spi3_thr)
+        firing_deps = per_dep[per_dep < cfg.spi3_thr]
         fires[y] = {
-            "fire": fire,
-            "min_spi3": float(min_val),
-            "fire_date": pd.to_datetime(sub.loc[idx_min, "date"]).date() if fire else None,
+            "fire": bool(len(firing_deps) > 0),
+            "min_spi3": float(per_dep.min()),
+            "worst_dep": str(per_dep.idxmin()),
+            "n_deps_fired": int(len(firing_deps)),
+            "n_deps_evaluated": int(len(per_dep)),
         }
     return _score(fires, cfg)
 
 
 def evaluate_combo(spi: pd.DataFrame, rzsm: pd.DataFrame, eta: pd.DataFrame, cfg: TriggerConfig) -> dict:
-    """Combined SPI + RZSM (and optionally ETa) trigger."""
+    """Combined SPI + RZSM (± ETa) trigger.
+
+    Per-department evaluation: a year fires if ANY priority department meets
+    ALL required conditions (SPI < thr) ∧ (RZSM < thr) [∧ (ETa < thr)] during
+    the window. Departments without coverage for a required indicator are
+    excluded from the fire test for that year.
+    """
     years = sorted(years_available(spi, cfg.window) &
                    (years_available(rzsm, cfg.window) if cfg.require_rzsm else years_available(spi, cfg.window)))
     fires: dict[int, dict] = {}
     for y in years:
-        sub_spi = spi[(spi["year"] == y) &
-                      (spi["doy"] >= cfg.window[0]) &
-                      (spi["doy"] <= cfg.window[1])]
-        if sub_spi.empty or sub_spi["value"].dropna().empty:
+        spi_min = _per_dep_min(spi, y, cfg.window)
+        if spi_min.empty:
             continue
-        min_spi = sub_spi["value"].min()
-        cond_spi = min_spi < cfg.spi3_thr
+        rzsm_min = _per_dep_min(rzsm, y, cfg.window) if cfg.require_rzsm else pd.Series(dtype=float)
+        eta_win = (cfg.window[0], cfg.window[1] + DEKAD_FOLLOWING)
+        eta_min = _per_dep_min(eta, y, eta_win) if cfg.require_eta else pd.Series(dtype=float)
 
-        cond_rzsm = True
-        min_rzsm = None
-        if cfg.require_rzsm:
-            sub_rzsm = rzsm[(rzsm["year"] == y) &
-                            (rzsm["doy"] >= cfg.window[0]) &
-                            (rzsm["doy"] <= cfg.window[1])]
-            if sub_rzsm.empty or sub_rzsm["value"].dropna().empty:
-                cond_rzsm = False
-            else:
-                min_rzsm = sub_rzsm["value"].min()
-                cond_rzsm = min_rzsm < cfg.rzsm_thr
-
-        cond_eta = True
-        min_eta = None
-        if cfg.require_eta:
-            sub_eta = eta[(eta["year"] == y) &
-                          (eta["doy"] >= cfg.window[0]) &
-                          (eta["doy"] <= cfg.window[1] + DEKAD_FOLLOWING)]
-            if sub_eta.empty or sub_eta["value"].dropna().empty:
-                cond_eta = False
-            else:
-                min_eta = sub_eta["value"].min()
-                cond_eta = min_eta < cfg.eta_thr
-
-        fire = bool(cond_spi and cond_rzsm and cond_eta)
+        firing_deps = []
+        for dep in spi_min.index:
+            spi_ok = spi_min[dep] < cfg.spi3_thr
+            rzsm_ok = (dep in rzsm_min.index and rzsm_min[dep] < cfg.rzsm_thr) if cfg.require_rzsm else True
+            eta_ok = (dep in eta_min.index and eta_min[dep] < cfg.eta_thr) if cfg.require_eta else True
+            if spi_ok and rzsm_ok and eta_ok:
+                firing_deps.append(dep)
         fires[y] = {
-            "fire": fire,
-            "min_spi3": float(min_spi),
-            "min_rzsm": float(min_rzsm) if min_rzsm is not None else None,
-            "min_eta": float(min_eta) if min_eta is not None else None,
+            "fire": bool(len(firing_deps) > 0),
+            "min_spi3": float(spi_min.min()),
+            "min_rzsm": float(rzsm_min.min()) if not rzsm_min.empty else None,
+            "min_eta": float(eta_min.min()) if not eta_min.empty else None,
+            "worst_dep": str(spi_min.idxmin()),
+            "firing_deps": firing_deps,
+            "n_deps_fired": len(firing_deps),
+            "n_deps_evaluated": int(len(spi_min)),
         }
     return _score(fires, cfg)
 
@@ -249,10 +243,15 @@ def _score(fires: dict, cfg: TriggerConfig) -> dict:
 
 def sweep_spi_only(spi: pd.DataFrame) -> list[dict]:
     thresholds = [-0.8, -1.0, -1.3, -1.5, -1.7]
+    # Sweep three windows: country's primary silking window, a tighter
+    # centered variant, and a wider one capturing late-season impact.
+    s, e = SILKING_DOY_START, SILKING_DOY_END
+    mid = (s + e) // 2
+    half = max(15, (e - s) // 2)
     windows = [
-        (196, 227),  # mid-Jul to mid-Aug — silking
-        (181, 243),  # full Jul-Aug
-        (213, 273),  # postrera planting/early growth
+        (s, e),                                  # country's primary window
+        (max(1, mid - half // 2), min(365, mid + half // 2)),  # tighter, centered
+        (s, min(365, e + 46)),                   # wider, extends ~1.5 months later
     ]
     results = []
     for thr in thresholds:
@@ -271,7 +270,7 @@ def sweep_spi_only(spi: pd.DataFrame) -> list[dict]:
 def sweep_combo(spi: pd.DataFrame, rzsm: pd.DataFrame, eta: pd.DataFrame) -> list[dict]:
     spi_thrs = [-1.0, -1.3, -1.5]
     rzsm_thrs = [-0.5, -1.0]
-    window = (196, 227)
+    window = (SILKING_DOY_START, SILKING_DOY_END)
     results = []
     for s in spi_thrs:
         for r in rzsm_thrs:
@@ -301,14 +300,20 @@ def _fmt_ci(ci: tuple[float, float]) -> str:
 
 def render_report(spi_results: list[dict], combo_results: list[dict]) -> str:
     lines: list[str] = []
-    lines.append("# Trigger Calibration Report")
+    lines.append(f"# Trigger Calibration Report — {config.CC['display_name']}")
     lines.append("")
     lines.append("Generated from `el_nino/experiments/trigger_calibration.py`.")
     lines.append("")
-    lines.append("**Region:** eastern Dry Corridor (mean of Morazán, San Miguel, La Unión, Usulután).")
-    lines.append("**Labels:** drawn from `el_nino/el_nino_agricultural_risks.md`.")
+    lines.append(f"**Country:** {config.CC['display_name']} ({config.CC['short_code']}).")
+    lines.append(f"**Region:** {config.CC['priority_label']} "
+                 f"(mean of {config.CC['priority_display_names']}).")
+    lines.append(f"**Silking window:** DOY {SILKING_DOY_START}-{SILKING_DOY_END}.")
+    lines.append("**Labels:** drawn from `el_nino/el_nino_agricultural_risks.md` via `config.CC['labeled_events']`.")
     lines.append("")
-    lines.append("**Severe positive:** 2015 (60% maize / 80% beans loss in Dry Corridor).")
+    severe_yrs = [y for y in POSITIVE_YEARS if LABELED_EVENTS[y][0].startswith("severe")]
+    if severe_yrs:
+        sev_text = ", ".join(f"{y} ({LABELED_EVENTS[y][1]})" for y in sorted(severe_yrs))
+        lines.append(f"**Severe positive(s):** {sev_text}.")
     pos_text = ", ".join(str(y) for y in sorted(POSITIVE_YEARS) if not LABELED_EVENTS[y][0].startswith("severe"))
     lines.append(f"**Moderate positives:** {pos_text}.")
     lines.append("**Negatives:** all other years with available data.")
@@ -369,13 +374,17 @@ def render_report(spi_results: list[dict], combo_results: list[dict]) -> str:
         f"FP/decade: {_fmt(best_spi['fp_per_decade'])} {_fmt_ci(best_spi['fp_per_decade_ci'])}"
     )
     lines.append("")
-    lines.append("| Year | Label | Min SPI-3 | Fired? | Notes |")
-    lines.append("|---|---|---:|:---:|---|")
+    lines.append("| Year | Label | Worst dep | Min SPI-3 | Deps fired | Fired? | Notes |")
+    lines.append("|---|---|---|---:|:---:|:---:|---|")
     for y in best_spi["years"]:
         f = best_spi["fires"][y]
         label = LABELED_EVENTS.get(y, ("negative", ""))
         symbol = "✓" if f["fire"] else "—"
-        lines.append(f"| {y} | {label[0]} | {f['min_spi3']:.2f} | {symbol} | {label[1]} |")
+        n_fired = f.get("n_deps_fired", 0)
+        n_eval = f.get("n_deps_evaluated", 0)
+        deps_cell = f"{n_fired}/{n_eval}"
+        lines.append(f"| {y} | {label[0]} | {f.get('worst_dep', '—')} | "
+                     f"{f['min_spi3']:.2f} | {deps_cell} | {symbol} | {label[1]} |")
     lines.append("")
 
     best_combo = _pick_recommended(combo_results)
@@ -391,16 +400,21 @@ def render_report(spi_results: list[dict], combo_results: list[dict]) -> str:
             f"FP/decade: {_fmt(best_combo['fp_per_decade'])} {_fmt_ci(best_combo['fp_per_decade_ci'])}"
         )
         lines.append("")
-        lines.append("| Year | Label | SPI-3 min | RZSM min (σ) | ETa min (σ) | Fired? |")
-        lines.append("|---|---|---:|---:|---:|:---:|")
+        lines.append("| Year | Label | Worst dep | SPI-3 min | RZSM min (σ) | ETa min (σ) | Deps fired | Fired? |")
+        lines.append("|---|---|---|---:|---:|---:|:---:|:---:|")
         for y in best_combo["years"]:
             f = best_combo["fires"][y]
             label = LABELED_EVENTS.get(y, ("negative", ""))
             symbol = "✓" if f["fire"] else "—"
             spi = f.get("min_spi3"); rzsm = f.get("min_rzsm"); eta = f.get("min_eta")
-            lines.append(f"| {y} | {label[0]} | {spi:.2f} | "
+            n_fired = f.get("n_deps_fired", 0)
+            n_eval = f.get("n_deps_evaluated", 0)
+            deps_cell = f"{n_fired}/{n_eval}"
+            lines.append(f"| {y} | {label[0]} | {f.get('worst_dep', '—')} | "
+                         f"{spi:.2f} | "
                          f"{(f'{rzsm:.2f}' if rzsm is not None else '—')} | "
-                         f"{(f'{eta:.2f}' if eta is not None else '—')} | {symbol} |")
+                         f"{(f'{eta:.2f}' if eta is not None else '—')} | "
+                         f"{deps_cell} | {symbol} |")
 
     lines.append("")
     lines.append("## Operational recommendations")
@@ -436,7 +450,8 @@ def main() -> None:
     combo_results = sweep_combo(spi, rzsm, eta)
 
     report = render_report(spi_results, combo_results)
-    out = Path(__file__).parent / "trigger_calibration_report.md"
+    code = config.CC["short_code"].lower()
+    out = Path(__file__).parent / f"trigger_calibration_report_{code}.md"
     out.write_text(report)
     print(f"Wrote {out}")
 

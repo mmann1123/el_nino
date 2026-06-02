@@ -44,7 +44,7 @@ W1 = DroughtCategory(
 )
 W2 = DroughtCategory(
     "Very wet", "W2", "#42a5f5",
-    "Substantially wetter than typical. Flood risk in low-lying fields; postrera planting may slip.",
+    "Substantially wetter than typical. Flood risk in low-lying fields; later-season planting may slip.",
 )
 W3 = DroughtCategory(
     "Extremely wet", "W3", "#1565c0",
