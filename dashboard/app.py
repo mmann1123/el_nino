@@ -238,16 +238,13 @@ tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
 
 # ============= Tab 1 — Overview =============
 with tabs[0]:
-    st.subheader(f"Overview — {departamento}")
-    st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
-
-    # ENSO context — current-year ONI vs notable analog years (Year Compare
-    # styling), with the freshest weekly Niño 3.4 point. ONI is a single global
-    # index (not per-departamento), so it sits above the department map as
-    # country-wide context.
+    # ENSO context leads the Overview — current-year ONI vs notable analog years
+    # (Year Compare styling), with the freshest weekly Niño 3.4 point. ONI is a
+    # single global index (not per-departamento), so it sits above the
+    # department map as country-wide context.
     oni_df = data.load_enso()
     if not oni_df.empty:
-        st.markdown("**El Niño / La Niña tracker — this year vs analog years**")
+        st.subheader("El Niño / La Niña tracker — this year vs analog years")
         available_enso_years = sorted(oni_df["year"].dropna().unique().tolist())
         el_nino_yrs = [y for y in NOTABLE_EL_NINO_YEARS if y in available_enso_years]
         la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_enso_years]
@@ -298,6 +295,9 @@ with tabs[0]:
         )
         st.caption(cap)
         st.divider()
+
+    st.subheader(f"Overview — {departamento}")
+    st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
 
     # Country-wide status mini-map. Click events on the polygons re-select the
     # corresponding departamento in the sidebar dropdown.
