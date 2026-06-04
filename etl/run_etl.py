@@ -46,6 +46,13 @@ def cmd_synth(args) -> None:
             print(f"  fetched ONI ({len(enso_df)} rows)")
         except Exception as e:
             print(f"  could not fetch ONI ({e}); proceeding with default El Niño year set")
+    if enso.load_nino34_weekly().empty:
+        try:
+            wk = enso.fetch_nino34_weekly()
+            enso.save_nino34_weekly(wk)
+            print(f"  fetched weekly Niño 3.4 ({len(wk)} weeks)")
+        except Exception as e:
+            print(f"  could not fetch weekly Niño 3.4 ({e}); skipping fresh-point marker")
 
     print("  chirps...")
     synth.synth_chirps(start, end)
@@ -160,6 +167,15 @@ def cmd_enso(args) -> None:
     df = enso.fetch()
     enso.save(df)
     print(f"Saved ONI: {len(df)} rows; {len(enso.el_nino_years(df))} El Niño years on record")
+    try:
+        wk = enso.fetch_nino34_weekly()
+        enso.save_nino34_weekly(wk)
+        latest = enso.latest_nino34(wk)
+        if latest:
+            print(f"Saved weekly Niño 3.4: {len(wk)} weeks; latest "
+                  f"{latest['date']} = {latest['nino34_ssta']:+.1f}°C ({latest['phase']})")
+    except Exception as e:
+        print(f"  could not fetch weekly Niño 3.4 ({e}); ONI saved regardless")
 
 
 def cmd_finalize(args) -> None:

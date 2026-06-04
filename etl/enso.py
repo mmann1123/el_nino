@@ -5,7 +5,8 @@ El Niño / Neutral / La Niña using the standard ±0.5°C threshold.
 from __future__ import annotations
 
 import io
-from datetime import date
+import re
+from datetime import date, datetime
 
 import pandas as pd
 import requests
@@ -14,6 +15,16 @@ from .. import config
 from . import storage
 
 ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
+
+# CPC weekly Niño-region SST anomalies, 1991–2020 base period (the older
+# wksst8110.for is frozen at Jan-2021). Updated every Monday; the latest week
+# is the freshest read on ENSO state — ~1 month ahead of what the 3-month ONI
+# will eventually report. Columns per region are "SST SSTA"; negative anomalies
+# are sign-concatenated (e.g. "25.5-1.1"), so parse with a float regex.
+NINO34_WEEKLY_URL = "https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for"
+
+_FLOAT_RE = re.compile(r"-?\d+\.\d+")
+_WEEK_DATE_RE = re.compile(r"^\s*(\d{2}[A-Za-z]{3}\d{4})")
 
 # CPC's "5 overlapping seasons" rule for event classification is approximated
 # by labeling each month directly from ONI ≥ 0.5 / ≤ -0.5. Good enough for
@@ -67,6 +78,60 @@ def save(df: pd.DataFrame) -> None:
 def load() -> pd.DataFrame:
     out = config.ENSO_DIR / "oni.parquet"
     return storage.read_parquet(out)
+
+
+def fetch_nino34_weekly() -> pd.DataFrame:
+    """Weekly Niño 3.4 SST + anomaly from CPC. Returns [date, nino34_sst,
+    nino34_ssta, phase], oldest→newest. Each data row is a week-centered date
+    followed by SST/SSTA pairs for Niño1+2, 3, 3.4, 4 — so the Niño 3.4 anomaly
+    is the 6th float on the line."""
+    resp = requests.get(NINO34_WEEKLY_URL, timeout=30)
+    resp.raise_for_status()
+    rows = []
+    for line in resp.text.splitlines():
+        m = _WEEK_DATE_RE.match(line)
+        if not m:
+            continue
+        nums = _FLOAT_RE.findall(line)
+        if len(nums) < 6:
+            continue
+        try:
+            d = datetime.strptime(m.group(1).upper(), "%d%b%Y").date()
+        except ValueError:
+            continue
+        rows.append({"date": d, "nino34_sst": float(nums[4]), "nino34_ssta": float(nums[5])})
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    df = df.sort_values("date").reset_index(drop=True)
+    df["phase"] = df["nino34_ssta"].apply(_classify)
+    return df
+
+
+def save_nino34_weekly(df: pd.DataFrame) -> None:
+    out = config.ENSO_DIR / "nino34_weekly.parquet"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out, index=False)
+
+
+def load_nino34_weekly() -> pd.DataFrame:
+    out = config.ENSO_DIR / "nino34_weekly.parquet"
+    return storage.read_parquet(out)
+
+
+def latest_nino34(df: pd.DataFrame | None = None) -> dict | None:
+    """Most recent weekly Niño 3.4 reading as {date, nino34_ssta, phase},
+    or None if no weekly data is stored yet."""
+    if df is None:
+        df = load_nino34_weekly()
+    if df is None or df.empty:
+        return None
+    row = df.sort_values("date").iloc[-1]
+    return {
+        "date": row["date"],
+        "nino34_ssta": float(row["nino34_ssta"]),
+        "phase": str(row["phase"]),
+    }
 
 
 def el_nino_years(df: pd.DataFrame | None = None) -> list[int]:

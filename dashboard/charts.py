@@ -91,6 +91,111 @@ FORECAST_DASH = "dash"
 ANALOG_PALETTE = ["#1f77b4", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf"]
 
 
+ENSO_THRESHOLD = 0.5
+ENSO_EL_NINO_BAND = "rgba(211, 47, 47, 0.12)"
+ENSO_LA_NINA_BAND = "rgba(25, 118, 210, 0.12)"
+
+
+def enso_year_compare_figure(
+    oni: pd.DataFrame,
+    today_: date,
+    analogs: dict[int, pd.DataFrame] | None = None,
+    latest_nino34: dict | None = None,
+) -> go.Figure:
+    """ENSO twin of the Year Compare chart. Reuses ``climatology_envelope_figure``
+    for the exact same visual language — ±6-month window centred on Today, analog
+    years re-anchored across calendar years in the ANALOG_PALETTE, red current-year
+    line, dotted Today marker — then swaps the percentile envelope for ±0.5 °C
+    El Niño / La Niña phase bands and drops the freshest weekly Niño 3.4 reading
+    on as an amber star.
+
+    oni: cols [date, year, oni]; analogs: {year: df[date, oni]};
+    latest_nino34: {date, nino34_ssta, phase}."""
+    if oni is None or oni.empty:
+        return go.Figure()
+
+    df = oni.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    if "year" not in df.columns:
+        df["year"] = df["date"].dt.year
+
+    # "Current" line = the recent ONI run at its real dates (it lags ~1 month,
+    # so it ends just shy of Today — the weekly star then extends it). Pulling a
+    # little over a year keeps the left half of the window populated, matching
+    # how the indicator charts plot the last 12 months.
+    window_start = pd.Timestamp(today_) - pd.Timedelta(days=400)
+    cur = df[df["date"] >= window_start][["date", "oni"]].copy()
+    cur["is_forecast"] = False
+
+    analogs = analogs or {}
+
+    fig = climatology_envelope_figure(
+        title="",
+        value_label="SST anomaly (°C) — ONI / Niño 3.4",
+        climatology=pd.DataFrame(),          # no percentile envelope for ENSO
+        current=cur,
+        primary_column="oni",
+        analogs=analogs,
+        today_=today_,
+        last_observation=None,
+    )
+
+    # Y-range from everything we draw, so the phase-band shapes can't stretch
+    # the axis. Floor at ±2.5 °C so the bands always read.
+    yvals = list(cur["oni"].dropna())
+    for adf in analogs.values():
+        yvals += list(pd.to_numeric(adf["oni"], errors="coerce").dropna())
+    if latest_nino34:
+        yvals.append(latest_nino34["nino34_ssta"])
+    y_lo = min([-2.5] + yvals) - 0.4
+    y_hi = max([2.5] + yvals) + 0.4
+
+    # ±0.5 °C phase bands (drawn under the data) + dotted threshold lines.
+    fig.add_hrect(y0=ENSO_THRESHOLD, y1=y_hi, fillcolor=ENSO_EL_NINO_BAND,
+                  line_width=0, layer="below")
+    fig.add_hrect(y0=y_lo, y1=-ENSO_THRESHOLD, fillcolor=ENSO_LA_NINA_BAND,
+                  line_width=0, layer="below")
+    for thr, txt, col in (
+        (ENSO_THRESHOLD, "El Niño ≥ +0.5 °C", "#ef5350"),
+        (-ENSO_THRESHOLD, "La Niña ≤ −0.5 °C", "#42a5f5"),
+    ):
+        fig.add_hline(
+            y=thr, line=dict(color=col, width=1, dash="dot"),
+            annotation=dict(text=txt, font=dict(size=18, color=col)),
+            annotation_position="top right",
+        )
+
+    # Freshest weekly Niño 3.4 — the leading edge, ~1 month ahead of ONI. Drawn
+    # as a dashed red continuation of the current-year line (same idiom as the
+    # 15-day forecast on the indicator charts) rather than a free-floating point.
+    if latest_nino34:
+        d = pd.to_datetime(latest_nino34["date"])
+        lead_x = [d]
+        lead_y = [latest_nino34["nino34_ssta"]]
+        if not cur.empty:
+            last_cur = cur.sort_values("date").iloc[-1]
+            lead_x = [pd.to_datetime(last_cur["date"]), d]
+            lead_y = [last_cur["oni"], latest_nino34["nino34_ssta"]]
+        fig.add_trace(go.Scatter(
+            x=lead_x, y=lead_y,
+            mode="lines+markers",
+            line=dict(color=CURRENT_YEAR, width=3, dash=FORECAST_DASH),
+            marker=dict(size=8, color=CURRENT_YEAR),
+            name="Latest weekly Niño 3.4",
+            hovertemplate=(
+                f"Weekly Niño 3.4 · {d.date()}: "
+                f"{latest_nino34['nino34_ssta']:+.2f} °C<extra></extra>"
+            ),
+        ))
+
+    # A touch thicker current-year line than the indicator charts so it reads
+    # against the analog overlays, and a larger legend.
+    fig.update_traces(line=dict(width=4), selector=dict(name="Current year"))
+    fig.update_layout(height=520, legend=dict(font=dict(size=15)))
+    fig.update_yaxes(range=[y_lo, y_hi])
+    return fig
+
+
 def climatology_envelope_figure(
     title: str,
     value_label: str,

@@ -241,6 +241,64 @@ with tabs[0]:
     st.subheader(f"Overview — {departamento}")
     st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
 
+    # ENSO context — current-year ONI vs notable analog years (Year Compare
+    # styling), with the freshest weekly Niño 3.4 point. ONI is a single global
+    # index (not per-departamento), so it sits above the department map as
+    # country-wide context.
+    oni_df = data.load_enso()
+    if not oni_df.empty:
+        st.markdown("**El Niño / La Niña tracker — this year vs analog years**")
+        available_enso_years = sorted(oni_df["year"].dropna().unique().tolist())
+        el_nino_yrs = [y for y in NOTABLE_EL_NINO_YEARS if y in available_enso_years]
+        la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_enso_years]
+
+        eb1, eb2, eb3 = st.columns(3)
+        if eb1.button("📊 Notable El Niño years", key="enso_eln_btn"):
+            st.session_state["enso_selected_years"] = el_nino_yrs
+        if eb2.button("❄️ Notable La Niña years", key="enso_lan_btn"):
+            st.session_state["enso_selected_years"] = la_nina_yrs
+        if eb3.button("Clear", key="enso_clear_btn"):
+            st.session_state["enso_selected_years"] = []
+
+        raw_default = st.session_state.get("enso_selected_years", el_nino_yrs)
+        default_enso_years = [y for y in raw_default if y in available_enso_years]
+        if default_enso_years != raw_default:
+            st.session_state["enso_selected_years"] = default_enso_years
+        selected_enso = st.multiselect(
+            "Years to overlay on the current year",
+            options=available_enso_years,
+            default=default_enso_years,
+            key="enso_selected_years",
+        )
+
+        enso_analogs = {}
+        for y in selected_enso:
+            yr_df = oni_df[oni_df["year"] == y][["date", "oni"]].dropna(subset=["oni"])
+            if not yr_df.empty:
+                enso_analogs[y] = yr_df
+
+        latest34 = data.latest_nino34()
+        enso_fig = charts.enso_year_compare_figure(
+            oni_df, today_, analogs=enso_analogs, latest_nino34=latest34,
+        )
+        st.plotly_chart(enso_fig, width="stretch", config=charts.CHART_CONFIG)
+        latest_oni = oni_df.sort_values("date").iloc[-1]
+        cap = (
+            f"Latest ONI: **{latest_oni['oni']:+.2f} °C** ({latest_oni['phase']}, "
+            f"{pd.Timestamp(latest_oni['date']):%b %Y})."
+        )
+        if latest34:
+            cap += (
+                f" Freshest weekly Niño 3.4: **{latest34['nino34_ssta']:+.2f} °C** "
+                f"({latest34['phase']}, week of {pd.Timestamp(latest34['date']):%d %b %Y})."
+            )
+        cap += (
+            " ONI is NOAA's 3-month Niño 3.4 SST anomaly; ±0.5 °C marks El Niño / "
+            "La Niña. The weekly point (★) leads ONI by ~1 month."
+        )
+        st.caption(cap)
+        st.divider()
+
     # Country-wide status mini-map. Click events on the polygons re-select the
     # corresponding departamento in the sidebar dropdown.
     map_col, legend_col = st.columns([3, 1])
