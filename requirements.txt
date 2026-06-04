@@ -21,3 +21,6 @@ google-cloud-secret-manager>=2.16.0
 # Notifications (only loaded when alerting is enabled)
 sendgrid>=6.10.0
 slack-sdk>=3.21.0
+
+# Testing (dev only; not needed in the Cloud Run image)
+pytest>=8.0.0
