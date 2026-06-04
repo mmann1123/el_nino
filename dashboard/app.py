@@ -99,6 +99,27 @@ NOTABLE_LA_NINA_YEARS = enso.NOTABLE_LA_NINA_YEARS
 
 today_ = config.today()
 
+# Device detection from the request User-Agent so the data charts can be served
+# static (scroll-friendly) on phones and fully interactive on desktop. iPadOS
+# reports a desktop UA, so tablets fall through to the interactive path — fine,
+# they have the screen room. Detection is best-effort; on any failure we assume
+# desktop (the richer experience).
+import re  # noqa: E402
+
+_MOBILE_UA_RE = re.compile(r"Mobi|Android|iPhone|iPod|IEMobile|BlackBerry|Opera Mini", re.I)
+
+
+def _is_mobile() -> bool:
+    try:
+        ua = st.context.headers.get("User-Agent", "") or ""
+    except Exception:
+        return False
+    return bool(_MOBILE_UA_RE.search(ua))
+
+
+IS_MOBILE = _is_mobile()
+CHART_CFG = charts.chart_config(IS_MOBILE)
+
 # ---------- Sidebar ----------
 
 def _header_icon_html() -> str:
@@ -238,16 +259,13 @@ tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
 
 # ============= Tab 1 — Overview =============
 with tabs[0]:
-    st.subheader(f"Overview — {departamento}")
-    st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
-
-    # ENSO context — current-year ONI vs notable analog years (Year Compare
-    # styling), with the freshest weekly Niño 3.4 point. ONI is a single global
-    # index (not per-departamento), so it sits above the department map as
-    # country-wide context.
+    # ENSO context leads the Overview — current-year ONI vs notable analog years
+    # (Year Compare styling), with the freshest weekly Niño 3.4 point. ONI is a
+    # single global index (not per-departamento), so it sits above the
+    # department map as country-wide context.
     oni_df = data.load_enso()
     if not oni_df.empty:
-        st.markdown("**El Niño / La Niña tracker — this year vs analog years**")
+        st.subheader("El Niño / La Niña tracker — this year vs analog years")
         available_enso_years = sorted(oni_df["year"].dropna().unique().tolist())
         el_nino_yrs = [y for y in NOTABLE_EL_NINO_YEARS if y in available_enso_years]
         la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_enso_years]
@@ -281,7 +299,7 @@ with tabs[0]:
         enso_fig = charts.enso_year_compare_figure(
             oni_df, today_, analogs=enso_analogs, latest_nino34=latest34,
         )
-        st.plotly_chart(enso_fig, width="stretch", config=charts.CHART_CONFIG)
+        st.plotly_chart(enso_fig, width="stretch", config=CHART_CFG)
         latest_oni = oni_df.sort_values("date").iloc[-1]
         cap = (
             f"Latest ONI: **{latest_oni['oni']:+.2f} °C** ({latest_oni['phase']}, "
@@ -298,6 +316,9 @@ with tabs[0]:
         )
         st.caption(cap)
         st.divider()
+
+    st.subheader(f"Overview — {departamento}")
+    st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
 
     # Country-wide status mini-map. Click events on the polygons re-select the
     # corresponding departamento in the sidebar dropdown.
@@ -397,7 +418,7 @@ with tabs[0]:
                 last_observation=freshness.last_observation_date(ind_name),
             )
             fig.update_layout(height=320, showlegend=False)
-            st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
+            st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
             latest_z, latest_obs = status_view.current_status_value(
                 ind_df, ind_cls.status_window_days, today_,
@@ -443,7 +464,7 @@ with tabs[1]:
             today_=today_,
             last_observation=freshness.last_observation_date(indicator_name),
         )
-        st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
+        st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
         # Plain-language status — averaged over the indicator's status window
         # of OBSERVED rows only (skips forecasts so the badge never reports a
@@ -511,7 +532,7 @@ with tabs[1]:
                         smoothed_clim=clim,
                         value_label=yaxis_label_for(primary),
                     )
-                    st.plotly_chart(diag_fig, width="stretch", config=charts.CHART_CONFIG)
+                    st.plotly_chart(diag_fig, width="stretch", config=CHART_CFG)
                     st.caption(
                         f"Indicator: **{INDICATOR_LABELS[indicator_name]}** · "
                         f"Years: {INDICATOR_BASELINE[indicator_name]} · "
@@ -592,7 +613,7 @@ with tabs[2]:
             last_observation=freshness.last_observation_date(indicator_name),
         )
         fig.update_layout(height=520)
-        st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
+        st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
 # ---------- About this data ----------
 with st.expander("About this data"):
