@@ -25,6 +25,22 @@ CHART_CONFIG = {
     "displayModeBar": "hover",  # only appears on hover, hidden by default
 }
 
+# On phones, Plotly's touch handlers grab vertical swipes as pan/select, so the
+# page won't scroll past a chart. staticPlot renders a flat, non-interactive
+# image — swipes scroll the page every time. The per-chart caption already
+# surfaces the key numbers, so losing hover/zoom on mobile costs little.
+CHART_CONFIG_MOBILE = {
+    "staticPlot": True,
+    "displayModeBar": False,
+    "responsive": True,
+}
+
+
+def chart_config(mobile: bool = False) -> dict:
+    """Plotly `config` for the data charts: static (scroll-friendly) on mobile,
+    fully interactive on desktop."""
+    return CHART_CONFIG_MOBILE if mobile else CHART_CONFIG
+
 
 def smoothing_diagnostic_figure(
     raw_clim: pd.DataFrame,

@@ -99,6 +99,27 @@ NOTABLE_LA_NINA_YEARS = enso.NOTABLE_LA_NINA_YEARS
 
 today_ = config.today()
 
+# Device detection from the request User-Agent so the data charts can be served
+# static (scroll-friendly) on phones and fully interactive on desktop. iPadOS
+# reports a desktop UA, so tablets fall through to the interactive path — fine,
+# they have the screen room. Detection is best-effort; on any failure we assume
+# desktop (the richer experience).
+import re  # noqa: E402
+
+_MOBILE_UA_RE = re.compile(r"Mobi|Android|iPhone|iPod|IEMobile|BlackBerry|Opera Mini", re.I)
+
+
+def _is_mobile() -> bool:
+    try:
+        ua = st.context.headers.get("User-Agent", "") or ""
+    except Exception:
+        return False
+    return bool(_MOBILE_UA_RE.search(ua))
+
+
+IS_MOBILE = _is_mobile()
+CHART_CFG = charts.chart_config(IS_MOBILE)
+
 # ---------- Sidebar ----------
 
 def _header_icon_html() -> str:
@@ -278,7 +299,7 @@ with tabs[0]:
         enso_fig = charts.enso_year_compare_figure(
             oni_df, today_, analogs=enso_analogs, latest_nino34=latest34,
         )
-        st.plotly_chart(enso_fig, width="stretch", config=charts.CHART_CONFIG)
+        st.plotly_chart(enso_fig, width="stretch", config=CHART_CFG)
         latest_oni = oni_df.sort_values("date").iloc[-1]
         cap = (
             f"Latest ONI: **{latest_oni['oni']:+.2f} °C** ({latest_oni['phase']}, "
@@ -397,7 +418,7 @@ with tabs[0]:
                 last_observation=freshness.last_observation_date(ind_name),
             )
             fig.update_layout(height=320, showlegend=False)
-            st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
+            st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
             latest_z, latest_obs = status_view.current_status_value(
                 ind_df, ind_cls.status_window_days, today_,
@@ -443,7 +464,7 @@ with tabs[1]:
             today_=today_,
             last_observation=freshness.last_observation_date(indicator_name),
         )
-        st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
+        st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
         # Plain-language status — averaged over the indicator's status window
         # of OBSERVED rows only (skips forecasts so the badge never reports a
@@ -511,7 +532,7 @@ with tabs[1]:
                         smoothed_clim=clim,
                         value_label=yaxis_label_for(primary),
                     )
-                    st.plotly_chart(diag_fig, width="stretch", config=charts.CHART_CONFIG)
+                    st.plotly_chart(diag_fig, width="stretch", config=CHART_CFG)
                     st.caption(
                         f"Indicator: **{INDICATOR_LABELS[indicator_name]}** · "
                         f"Years: {INDICATOR_BASELINE[indicator_name]} · "
@@ -592,7 +613,7 @@ with tabs[2]:
             last_observation=freshness.last_observation_date(indicator_name),
         )
         fig.update_layout(height=520)
-        st.plotly_chart(fig, width="stretch", config=charts.CHART_CONFIG)
+        st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
 # ---------- About this data ----------
 with st.expander("About this data"):
