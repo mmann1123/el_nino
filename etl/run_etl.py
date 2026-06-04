@@ -104,11 +104,29 @@ def cmd_forecast(args) -> None:
     issuance = args.issuance or (config.today() - timedelta(days=1))
     print(f"Fetching GFS 15-day forecast (issuance {issuance})")
     df = indicator.fetch_forecast(issuance)
-    if df.empty:
-        print("  (no forecast data returned)")
-        return
 
     from . import storage
+    # A fresh issuance fully supersedes the previous forecast. Purge ALL existing
+    # forecast rows first (stale past leftovers + earlier issuances) — they sit
+    # on a rolling date grid that upsert_raw never overwrites, so without this
+    # they pile up and bleed into already-observed periods. Restricted to the
+    # active country's parquets so a mixed local STORAGE_ROOT isn't disturbed.
+    country = config.country_departments() or None
+    purged = storage.drop_all_forecasts("chirps", country)
+    print(f"  purged {purged} prior forecast row(s)")
+
+    if df.empty:
+        print("  (no forecast data returned — stale forecasts cleared)")
+        recompute_spi_for_all_parquets()
+        from . import refresh_check
+        refresh_check._update_freshness()
+        print("Done.")
+        return
+
+    # Forecasts are future-only; drop any pentad at/under today so an in-flight
+    # observation is never shadowed by a forecast for the same period.
+    today = config.today()
+    df = df[pd.to_datetime(df["date"]).dt.date > today]
     for dep, group in df.groupby("departamento"):
         storage.upsert_raw("chirps", dep, group.copy())
     print(f"  wrote {len(df)} forecast pentads across {df['departamento'].nunique()} departamentos")
