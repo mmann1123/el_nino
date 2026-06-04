@@ -83,6 +83,14 @@ create_scheduler "${COUNTRY_CODE}-fetch-imerg" \
   "NASA IMERG-Late daily rainfall" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,imerg"
 
+# ENSO state for the El Niño / La Niña tracker: NOAA CPC ONI (monthly) + the
+# weekly Niño 3.4 SST anomaly (updated Mondays). Weekly Tuesday refresh covers
+# both; no GEE involved, so it's cheap.
+create_scheduler "${COUNTRY_CODE}-enso" \
+  "30 10 * * 2" \
+  "NOAA CPC ONI + weekly Niño 3.4 SST anomaly" \
+  "-m,el_nino.etl.run_etl,enso"
+
 # The scheduler-invoking service account needs run.invoker on the job. Grant
 # it (idempotent — repeat calls are no-op).
 echo

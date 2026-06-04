@@ -46,7 +46,7 @@ env var on the job, so the running container reads the right config.
 
 ## Scheduled jobs
 
-Each country gets six entries, named `${COUNTRY_CODE}-*`:
+Each country gets seven entries, named `${COUNTRY_CODE}-*`:
 
 | Job name | Cron (UTC) | What it does |
 |---|---|---|
@@ -56,6 +56,7 @@ Each country gets six entries, named `${COUNTRY_CODE}-*`:
 | `${COUNTRY_CODE}-fetch-smap` | `45 9 */3 * *` | SMAP L4 root-zone soil moisture |
 | `${COUNTRY_CODE}-fetch-wapor` | `0 10 */3 * *` | FAO WAPOR v3 L1 AETI evapotranspiration |
 | `${COUNTRY_CODE}-fetch-imerg` | `15 10 * * *` | NASA IMERG-Late daily rainfall |
+| `${COUNTRY_CODE}-enso` | `30 10 * * 2` | NOAA CPC ONI + weekly Niño 3.4 (Tuesdays) |
 
 All times are 15 min apart so the Cloud Run Job concurrency stays at 1 per
 country. ES local time is UTC-6, HT local time is UTC-5.

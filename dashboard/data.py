@@ -176,6 +176,12 @@ def load_enso() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=3600)
+def latest_nino34() -> dict | None:
+    """Freshest weekly Niño 3.4 reading, or None if not fetched yet."""
+    return enso.latest_nino34()
+
+
+@st.cache_data(ttl=3600)
 def latest_observations() -> pd.DataFrame:
     """One row per (indicator, departamento) at the most recent date."""
     out: list[pd.DataFrame] = []
