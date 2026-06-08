@@ -259,64 +259,6 @@ tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
 
 # ============= Tab 1 — Overview =============
 with tabs[0]:
-    # ENSO context leads the Overview — current-year ONI vs notable analog years
-    # (Year Compare styling), with the freshest weekly Niño 3.4 point. ONI is a
-    # single global index (not per-departamento), so it sits above the
-    # department map as country-wide context.
-    oni_df = data.load_enso()
-    if not oni_df.empty:
-        st.subheader("El Niño / La Niña tracker — this year vs analog years")
-        available_enso_years = sorted(oni_df["year"].dropna().unique().tolist())
-        el_nino_yrs = [y for y in NOTABLE_EL_NINO_YEARS if y in available_enso_years]
-        la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_enso_years]
-
-        eb1, eb2, eb3 = st.columns(3)
-        if eb1.button("📊 Notable El Niño years", key="enso_eln_btn"):
-            st.session_state["enso_selected_years"] = el_nino_yrs
-        if eb2.button("❄️ Notable La Niña years", key="enso_lan_btn"):
-            st.session_state["enso_selected_years"] = la_nina_yrs
-        if eb3.button("Clear", key="enso_clear_btn"):
-            st.session_state["enso_selected_years"] = []
-
-        raw_default = st.session_state.get("enso_selected_years", el_nino_yrs)
-        default_enso_years = [y for y in raw_default if y in available_enso_years]
-        if default_enso_years != raw_default:
-            st.session_state["enso_selected_years"] = default_enso_years
-        selected_enso = st.multiselect(
-            "Years to overlay on the current year",
-            options=available_enso_years,
-            default=default_enso_years,
-            key="enso_selected_years",
-        )
-
-        enso_analogs = {}
-        for y in selected_enso:
-            yr_df = oni_df[oni_df["year"] == y][["date", "oni"]].dropna(subset=["oni"])
-            if not yr_df.empty:
-                enso_analogs[y] = yr_df
-
-        latest34 = data.latest_nino34()
-        enso_fig = charts.enso_year_compare_figure(
-            oni_df, today_, analogs=enso_analogs, latest_nino34=latest34,
-        )
-        st.plotly_chart(enso_fig, width="stretch", config=CHART_CFG)
-        latest_oni = oni_df.sort_values("date").iloc[-1]
-        cap = (
-            f"Latest ONI: **{latest_oni['oni']:+.2f} °C** ({latest_oni['phase']}, "
-            f"{pd.Timestamp(latest_oni['date']):%b %Y})."
-        )
-        if latest34:
-            cap += (
-                f" Freshest weekly Niño 3.4: **{latest34['nino34_ssta']:+.2f} °C** "
-                f"({latest34['phase']}, week of {pd.Timestamp(latest34['date']):%d %b %Y})."
-            )
-        cap += (
-            " ONI is NOAA's 3-month Niño 3.4 SST anomaly; ±0.5 °C marks El Niño / "
-            "La Niña. The weekly point (★) leads ONI by ~1 month."
-        )
-        st.caption(cap)
-        st.divider()
-
     st.subheader(f"Overview — {departamento}")
     st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
 
@@ -393,6 +335,69 @@ with tabs[0]:
             )
 
     st.divider()
+
+    # ENSO context — current-year ONI vs notable analog years (Year Compare
+    # styling) with a mean ± SD envelope and the freshest weekly Niño 3.4 point.
+    # ONI is a single global index (not per-departamento), so it sits below the
+    # department map as country-wide context.
+    oni_df = data.load_enso()
+    if not oni_df.empty:
+        st.subheader("El Niño / La Niña tracker — this year vs analog years")
+        available_enso_years = sorted(oni_df["year"].dropna().unique().tolist())
+        el_nino_yrs = [y for y in NOTABLE_EL_NINO_YEARS if y in available_enso_years]
+        la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_enso_years]
+
+        eb1, eb2, eb3 = st.columns(3)
+        if eb1.button("📊 Notable El Niño years", key="enso_eln_btn"):
+            st.session_state["enso_selected_years"] = el_nino_yrs
+        if eb2.button("❄️ Notable La Niña years", key="enso_lan_btn"):
+            st.session_state["enso_selected_years"] = la_nina_yrs
+        if eb3.button("Clear", key="enso_clear_btn"):
+            st.session_state["enso_selected_years"] = []
+
+        # Default to no analog overlay — just the current year, envelope, and the
+        # weekly point. Users add notable El Niño / La Niña years via the buttons.
+        # The widget is driven entirely by session_state (initialised here and
+        # updated by the buttons above), so it takes a `key` but NO `default=` —
+        # passing both triggers Streamlit's "created with a default value but
+        # also had its value set via the Session State API" warning.
+        st.session_state.setdefault("enso_selected_years", [])
+        st.session_state["enso_selected_years"] = [
+            y for y in st.session_state["enso_selected_years"] if y in available_enso_years
+        ]
+        selected_enso = st.multiselect(
+            "Years to overlay on the current year",
+            options=available_enso_years,
+            key="enso_selected_years",
+        )
+
+        enso_analogs = {}
+        for y in selected_enso:
+            yr_df = oni_df[oni_df["year"] == y][["date", "oni"]].dropna(subset=["oni"])
+            if not yr_df.empty:
+                enso_analogs[y] = yr_df
+
+        latest34 = data.latest_nino34()
+        enso_fig = charts.enso_year_compare_figure(
+            oni_df, today_, analogs=enso_analogs, latest_nino34=latest34,
+        )
+        st.plotly_chart(enso_fig, width="stretch", config=CHART_CFG)
+        latest_oni = oni_df.sort_values("date").iloc[-1]
+        cap = (
+            f"Latest ONI: **{latest_oni['oni']:+.2f} °C** ({latest_oni['phase']}, "
+            f"{pd.Timestamp(latest_oni['date']):%b %Y})."
+        )
+        if latest34:
+            cap += (
+                f" Freshest weekly Niño 3.4: **{latest34['nino34_ssta']:+.2f} °C** "
+                f"({latest34['phase']}, week of {pd.Timestamp(latest34['date']):%d %b %Y})."
+            )
+        cap += (
+            " ONI is NOAA's 3-month Niño 3.4 SST anomaly; ±0.5 °C marks El Niño / "
+            "La Niña. The weekly point (★) leads ONI by ~1 month."
+        )
+        st.caption(cap)
+        st.divider()
 
     panel_indicators = ["chirps", "smap", "wapor"]
     cols = st.columns(len(panel_indicators))
@@ -513,34 +518,6 @@ with tabs[1]:
                 f"_Baseline: {INDICATOR_BASELINE[indicator_name]} (per-DOY only, no smoothing)._"
             )
 
-        with st.expander("How smooth is the envelope? (raw vs windowed)"):
-            st.markdown(
-                "With only a few years per day-of-year, the 5th and 95th "
-                "percentiles are essentially the min and max of a handful of "
-                "values — they jump around as you move through the year, "
-                "even though the underlying climate doesn't. We smooth by "
-                "pooling each day's history with nearby days-of-year. The "
-                "comparison below shows the difference."
-            )
-            try:
-                raw_clim = data.load_raw_climatology(indicator_name, departamento, primary)
-                if raw_clim.empty:
-                    st.info("Raw climatology unavailable.")
-                else:
-                    diag_fig = charts.smoothing_diagnostic_figure(
-                        raw_clim=raw_clim,
-                        smoothed_clim=clim,
-                        value_label=yaxis_label_for(primary),
-                    )
-                    st.plotly_chart(diag_fig, width="stretch", config=CHART_CFG)
-                    st.caption(
-                        f"Indicator: **{INDICATOR_LABELS[indicator_name]}** · "
-                        f"Years: {INDICATOR_BASELINE[indicator_name]} · "
-                        f"Window: ±{window} days · "
-                        f"Raw envelope shown in red, windowed envelope in slate."
-                    )
-            except Exception as e:
-                st.warning(f"Could not load raw climatology: {e}")
 
 # ============= Tab 3 — Year Compare =============
 with tabs[2]:

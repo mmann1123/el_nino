@@ -80,15 +80,14 @@ def load() -> pd.DataFrame:
     return storage.read_parquet(out)
 
 
-def fetch_nino34_weekly() -> pd.DataFrame:
-    """Weekly Niño 3.4 SST + anomaly from CPC. Returns [date, nino34_sst,
-    nino34_ssta, phase], oldest→newest. Each data row is a week-centered date
-    followed by SST/SSTA pairs for Niño1+2, 3, 3.4, 4 — so the Niño 3.4 anomaly
-    is the 6th float on the line."""
-    resp = requests.get(NINO34_WEEKLY_URL, timeout=30)
-    resp.raise_for_status()
+def parse_nino34_weekly(text: str) -> pd.DataFrame:
+    """Parse CPC's weekly Niño-region table. Each data row is a week-centered
+    date followed by SST/SSTA pairs for Niño1+2, 3, 3.4, 4 — so the Niño 3.4 SST
+    and anomaly are the 5th and 6th floats on the line. Negative anomalies are
+    sign-concatenated (e.g. "25.5-1.1"), which the float regex splits correctly.
+    Returns [date, nino34_sst, nino34_ssta, phase], oldest→newest."""
     rows = []
-    for line in resp.text.splitlines():
+    for line in text.splitlines():
         m = _WEEK_DATE_RE.match(line)
         if not m:
             continue
@@ -106,6 +105,13 @@ def fetch_nino34_weekly() -> pd.DataFrame:
     df = df.sort_values("date").reset_index(drop=True)
     df["phase"] = df["nino34_ssta"].apply(_classify)
     return df
+
+
+def fetch_nino34_weekly() -> pd.DataFrame:
+    """Fetch + parse the CPC weekly Niño 3.4 table. See parse_nino34_weekly."""
+    resp = requests.get(NINO34_WEEKLY_URL, timeout=30)
+    resp.raise_for_status()
+    return parse_nino34_weekly(resp.text)
 
 
 def save_nino34_weekly(df: pd.DataFrame) -> None:

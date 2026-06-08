@@ -42,60 +42,6 @@ def chart_config(mobile: bool = False) -> dict:
     return CHART_CONFIG_MOBILE if mobile else CHART_CONFIG
 
 
-def smoothing_diagnostic_figure(
-    raw_clim: pd.DataFrame,
-    smoothed_clim: pd.DataFrame,
-    value_label: str,
-) -> go.Figure:
-    """Side-by-side per-DOY p05/p95 envelope: raw (per-DOY only) vs windowed.
-    Used in the 'How smooth is the envelope?' expander so users can see
-    exactly what the DOY window buys them.
-
-    Both inputs must have columns (doy, p05, p25, p50, p75, p95)."""
-    fig = go.Figure()
-    if raw_clim.empty or smoothed_clim.empty:
-        return fig
-
-    raw = raw_clim.sort_values("doy")
-    smo = smoothed_clim.sort_values("doy")
-    raw_doys = list(raw["doy"])
-    smo_doys = list(smo["doy"])
-
-    # Raw envelope — jagged
-    fig.add_trace(go.Scatter(
-        x=raw_doys + raw_doys[::-1],
-        y=list(raw["p95"]) + list(raw["p05"])[::-1],
-        fill="toself", fillcolor="rgba(229, 115, 115, 0.20)", line=dict(width=0),
-        name="Raw 5-95% (per-DOY only)", hoverinfo="skip",
-    ))
-    fig.add_trace(go.Scatter(
-        x=raw_doys, y=raw["p50"],
-        line=dict(color="#c62828", width=1, dash="dot"),
-        name="Raw median", hoverinfo="skip",
-    ))
-    # Smoothed envelope — windowed
-    fig.add_trace(go.Scatter(
-        x=smo_doys + smo_doys[::-1],
-        y=list(smo["p95"]) + list(smo["p05"])[::-1],
-        fill="toself", fillcolor="rgba(120, 144, 156, 0.30)", line=dict(width=0),
-        name="Windowed 5-95%", hoverinfo="skip",
-    ))
-    fig.add_trace(go.Scatter(
-        x=smo_doys, y=smo["p50"],
-        line=dict(color="#37474f", width=1.5),
-        name="Windowed median", hoverinfo="skip",
-    ))
-
-    fig.update_layout(
-        xaxis_title="Day of year",
-        yaxis_title=value_label,
-        height=280,
-        margin=dict(l=40, r=20, t=20, b=40),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=9)),
-    )
-    return fig
-
-
 ENVELOPE_OUTER_OBSERVED = "rgba(120, 144, 156, 0.18)"   # p05-p95 (past)
 ENVELOPE_INNER_OBSERVED = "rgba(120, 144, 156, 0.32)"   # p25-p75 (past)
 ENVELOPE_OUTER_FUTURE   = "rgba(120, 144, 156, 0.07)"   # p05-p95 (future, faded)
@@ -110,6 +56,52 @@ ANALOG_PALETTE = ["#1f77b4", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf"]
 ENSO_THRESHOLD = 0.5
 ENSO_EL_NINO_BAND = "rgba(211, 47, 47, 0.12)"
 ENSO_LA_NINA_BAND = "rgba(25, 118, 210, 0.12)"
+
+
+def _oni_climatology(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-calendar-month mean and standard deviation of ONI across the whole
+    record, interpolated to a daily [doy, p05..p95] climatology so it renders
+    through climatology_envelope_figure exactly like the indicator charts. The
+    bands map to mean ± 1 SD (inner) and mean ± 2 SD (outer); the centre line is
+    the mean.
+
+    Daily (not 12-point monthly) resolution matters: the envelope's past/future
+    halves overlap by one sample at Today to avoid a seam, so coarse monthly
+    anchors would stack into a visible ~month-wide lighter band there. Anchors
+    are at each month's 15th and interpolated circularly so the band is smooth
+    and the overlap is a single invisible day."""
+    import numpy as np
+
+    d = df.dropna(subset=["oni"]).copy()
+    if d.empty:
+        return pd.DataFrame()
+    d["date"] = pd.to_datetime(d["date"])
+    d["month"] = d["date"].dt.month
+    g = d.groupby("month")["oni"].agg(mean="mean", std="std").reset_index()
+    g["std"] = g["std"].fillna(0.0)
+    g = g.sort_values("month")
+
+    anchor_doy = [pd.Timestamp(2001, int(m), 15).dayofyear for m in g["month"]]
+    means = list(g["mean"]); stds = list(g["std"])
+    # Circular padding so January interpolates against December and vice-versa.
+    ext_doy = [anchor_doy[-1] - 365] + anchor_doy + [anchor_doy[0] + 365]
+    ext_mean = [means[-1]] + means + [means[0]]
+    ext_std = [stds[-1]] + stds + [stds[0]]
+
+    days = np.arange(1, 366)
+    mean_d = np.interp(days, ext_doy, ext_mean)
+    std_d = np.interp(days, ext_doy, ext_std)
+
+    return pd.DataFrame({
+        "doy": days,
+        "p05": mean_d - 2 * std_d,
+        "p10": mean_d - 2 * std_d,
+        "p25": mean_d - std_d,
+        "p50": mean_d,
+        "p75": mean_d + std_d,
+        "p90": mean_d + 2 * std_d,
+        "p95": mean_d + 2 * std_d,
+    })
 
 
 def enso_year_compare_figure(
@@ -145,15 +137,22 @@ def enso_year_compare_figure(
 
     analogs = analogs or {}
 
+    # Mean ± SD envelope, computed per calendar month over the whole ONI record
+    # and rendered exactly like the indicator charts' climatology band.
+    clim = _oni_climatology(df)
+
     fig = climatology_envelope_figure(
         title="",
         value_label="SST anomaly (°C) — ONI / Niño 3.4",
-        climatology=pd.DataFrame(),          # no percentile envelope for ENSO
+        climatology=clim,
         current=cur,
         primary_column="oni",
         analogs=analogs,
         today_=today_,
         last_observation=None,
+        outer_label="Mean ± 2 SD",
+        inner_label="Mean ± 1 SD",
+        median_label="Mean ONI (1950–present)",
     )
 
     # Y-range from everything we draw, so the phase-band shapes can't stretch
@@ -161,6 +160,8 @@ def enso_year_compare_figure(
     yvals = list(cur["oni"].dropna())
     for adf in analogs.values():
         yvals += list(pd.to_numeric(adf["oni"], errors="coerce").dropna())
+    if not clim.empty:
+        yvals += list(clim["p05"]) + list(clim["p95"])
     if latest_nino34:
         yvals.append(latest_nino34["nino34_ssta"])
     y_lo = min([-2.5] + yvals) - 0.4
@@ -222,10 +223,17 @@ def climatology_envelope_figure(
     today_: date | None = None,
     last_observation: date | None = None,
     is_forecast_col: str = "is_forecast",
+    outer_label: str = "Typical range (5th–95th pct)",
+    inner_label: str = "Most common range (25th–75th pct)",
+    median_label: str = "Median (typical)",
 ) -> go.Figure:
     """climatology: cols [doy, p05, p10, p25, p50, p75, p90, p95]
     current: cols [date, primary_column, is_forecast]
     analogs: {year: DataFrame with [date, primary_column]}
+
+    outer_label/inner_label/median_label name the two bands and the centre line —
+    defaults describe the percentile envelope the indicator charts use; the ENSO
+    chart overrides them with mean ± SD wording.
     """
     fig = go.Figure()
     today_ = today_ or date.today()
@@ -268,7 +276,7 @@ def climatology_envelope_figure(
                 x=past_dates + past_dates[::-1],
                 y=p95[past_slice] + p05[past_slice][::-1],
                 fill="toself", fillcolor=ENVELOPE_OUTER_OBSERVED, line=dict(width=0),
-                name="Typical range (5th–95th pct)",
+                name=outer_label,
                 hoverinfo="skip", showlegend=True,
                 legendgroup="env_outer",
             ))
@@ -276,14 +284,14 @@ def climatology_envelope_figure(
                 x=past_dates + past_dates[::-1],
                 y=p75[past_slice] + p25[past_slice][::-1],
                 fill="toself", fillcolor=ENVELOPE_INNER_OBSERVED, line=dict(width=0),
-                name="Most common range (25th–75th pct)",
+                name=inner_label,
                 hoverinfo="skip", showlegend=True,
                 legendgroup="env_inner",
             ))
             fig.add_trace(go.Scatter(
                 x=past_dates, y=p50[past_slice],
                 line=dict(color=ENVELOPE_MEDIAN_OBSERVED, width=1, dash="dot"),
-                name="Median (typical)",
+                name=median_label,
                 hoverinfo="skip", showlegend=True,
                 legendgroup="env_median",
             ))
