@@ -141,36 +141,6 @@ def load_climatology(indicator: str, departamento: str, value_column: str) -> pd
 
 
 @st.cache_data(ttl=3600)
-def load_raw_climatology(indicator: str, departamento: str, value_column: str) -> pd.DataFrame:
-    """Recompute the per-DOY climatology WITHOUT any DOY window — the raw,
-    unsmoothed version. Used only by the 'How smooth is the envelope?'
-    diagnostic expander so users can see what the smoothing buys them."""
-    from ..etl import climatology as clim_mod
-    if departamento == ALL:
-        # For the All view, average raw per-dep climatologies. Recompute raw
-        # for every dep, then average percentiles by DOY.
-        from ..etl.indicators import INDICATORS
-        cls = INDICATORS.get(indicator)
-        if cls is None:
-            return pd.DataFrame()
-        raw = clim_mod.compute_for_indicator(indicator, [value_column], doy_window=0)
-        if raw.empty:
-            return raw
-        sub = raw[raw["value_column"] == value_column]
-        country = config.country_departments()
-        if country:
-            sub = sub[sub["departamento"].isin(country)]
-        agg_spec = {c: "mean" for c in
-                    ["mu", "sigma", "p05", "p10", "p25", "p50", "p75", "p90", "p95"]}
-        return sub.groupby("doy", as_index=False).agg(agg_spec).sort_values("doy").reset_index(drop=True)
-    raw = clim_mod.compute_for_indicator(indicator, [value_column], doy_window=0)
-    if raw.empty:
-        return raw
-    out = raw[(raw["departamento"] == departamento) & (raw["value_column"] == value_column)]
-    return out.sort_values("doy").reset_index(drop=True)
-
-
-@st.cache_data(ttl=3600)
 def load_enso() -> pd.DataFrame:
     return enso.load()
 

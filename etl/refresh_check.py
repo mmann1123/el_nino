@@ -192,7 +192,10 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
 
 def _refresh_forecast(verbose_logger: Callable[[str], None]) -> int:
     """Pull the latest GFS 15-day forecast and merge into CHIRPS parquets.
-    Returns the number of forecast rows written (0 on failure)."""
+    Mirrors run_etl.cmd_forecast: a fresh issuance fully supersedes the prior
+    one, so purge existing forecast rows before writing (they sit on a rolling
+    date grid that upsert_raw never overwrites, otherwise they accumulate), and
+    keep only future-dated pentads. Returns rows written (0 on failure)."""
     from .indicators.chirps import CHIRPS
     issuance = date.today() - timedelta(days=1)
     verbose_logger(f"🌧️  forecast: pulling GFS 15-day (issuance {issuance})")
@@ -201,9 +204,17 @@ def _refresh_forecast(verbose_logger: Callable[[str], None]) -> int:
     except Exception as e:
         verbose_logger(f"❌ forecast: fetch failed: {e}")
         return 0
+
+    country = config.country_departments() or None
+    purged = storage.drop_all_forecasts("chirps", country)
+    if purged:
+        verbose_logger(f"   purged {purged} prior forecast row(s)")
+
     if df.empty:
-        verbose_logger("   (no forecast data returned)")
+        verbose_logger("   (no forecast data returned — stale forecasts cleared)")
         return 0
+    today = config.today()
+    df = df[pd.to_datetime(df["date"]).dt.date > today]
     for dep, group in df.groupby("departamento"):
         storage.upsert_raw("chirps", dep, group.copy())
     verbose_logger(f"   wrote {len(df)} forecast pentads across "
