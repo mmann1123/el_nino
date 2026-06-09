@@ -46,7 +46,7 @@ env var on the job, so the running container reads the right config.
 
 ## Scheduled jobs
 
-Each country gets seven entries, named `${COUNTRY_CODE}-*`:
+Each country gets eight entries, named `${COUNTRY_CODE}-*`:
 
 | Job name | Cron (UTC) | What it does |
 |---|---|---|
@@ -57,6 +57,7 @@ Each country gets seven entries, named `${COUNTRY_CODE}-*`:
 | `${COUNTRY_CODE}-fetch-wapor` | `0 10 */3 * *` | FAO WAPOR v3 L1 AETI evapotranspiration |
 | `${COUNTRY_CODE}-fetch-imerg` | `15 10 * * *` | NASA IMERG-Late daily rainfall |
 | `${COUNTRY_CODE}-enso` | `30 10 * * 2` | NOAA CPC ONI + weekly Niño 3.4 (Tuesdays) |
+| `${COUNTRY_CODE}-finalize` | `45 10 * * *` | Recompute SPI + climatology + anomaly z + freshness (must run AFTER the day's fetches; without it new rows have NaN `value_anom_z` and the dashboard badge silently anchors on stale data) |
 
 All times are 15 min apart so the Cloud Run Job concurrency stays at 1 per
 country. ES local time is UTC-6, HT local time is UTC-5.
@@ -103,7 +104,8 @@ COUNTRY_CODE=es  # or ht
 
 for j in ${COUNTRY_CODE}-prelim ${COUNTRY_CODE}-forecast \
          ${COUNTRY_CODE}-fetch-chirps ${COUNTRY_CODE}-fetch-smap \
-         ${COUNTRY_CODE}-fetch-wapor ${COUNTRY_CODE}-fetch-imerg; do
+         ${COUNTRY_CODE}-fetch-wapor ${COUNTRY_CODE}-fetch-imerg \
+         ${COUNTRY_CODE}-finalize; do
   gcloud scheduler jobs pause "$j" --location=us-central1
 done
 ```

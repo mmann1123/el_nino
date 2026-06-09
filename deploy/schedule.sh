@@ -91,6 +91,15 @@ create_scheduler "${COUNTRY_CODE}-enso" \
   "NOAA CPC ONI + weekly Niño 3.4 SST anomaly" \
   "-m,el_nino.etl.run_etl,enso"
 
+# Recompute derived state once all daily fetches have landed. Without this the
+# fetch/prelim/forecast jobs leave value_anom_z NaN on every new row, the
+# dashboard badge's dropna() silently skips them, and "current status" anchors
+# on increasingly stale rows.
+create_scheduler "${COUNTRY_CODE}-finalize" \
+  "45 10 * * *" \
+  "Recompute SPI + climatology + anomaly z + freshness" \
+  "-m,el_nino.etl.run_etl,finalize"
+
 # Executing a Cloud Run *Job* needs the `run.jobs.run` permission, which lives
 # in roles/run.developer — NOT roles/run.invoker (that only invokes *services*).
 # Granting run.invoker here was a bug: the scheduler fired but every run failed
