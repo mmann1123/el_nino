@@ -19,9 +19,14 @@ COPY el_nino/requirements.txt /app/el_nino/requirements.txt
 RUN pip install --no-cache-dir -r /app/el_nino/requirements.txt
 
 COPY el_nino /app/el_nino
+# Streamlit reads .streamlit/config.toml from $CWD (=/app here, not /app/el_nino).
+COPY el_nino/.streamlit /app/.streamlit
 
 ENV PYTHONPATH=/app
 ENV STORAGE_ROOT=/mnt/gcs
+# Light theme is also enforced via env var so it survives even if config.toml
+# is missing or $CWD changes.
+ENV STREAMLIT_THEME_BASE=light
 # Public dashboards — no sign-in gate. Set AUTH_MODE=oidc + ALLOWED_EMAILS at
 # deploy time to opt back in to the Streamlit OIDC gate (see dashboard/auth.py).
 ENV AUTH_MODE=disabled

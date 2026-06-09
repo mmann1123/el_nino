@@ -51,7 +51,7 @@ Each country gets seven entries, named `${COUNTRY_CODE}-*`:
 | Job name | Cron (UTC) | What it does |
 |---|---|---|
 | `${COUNTRY_CODE}-prelim` | `0 9 * * *` | UCSB CHIRPS-Prelim fill (3-day-latency rainfall) |
-| `${COUNTRY_CODE}-forecast` | `15 9 * * *` | NOAA GFS 15-day rainfall forecast |
+| `${COUNTRY_CODE}-forecast` | `15 9 * * *` | CHIRPS-GEFS v3 15-day rainfall forecast (bias-corrected) |
 | `${COUNTRY_CODE}-fetch-chirps` | `30 9 */3 * *` | CHIRPS from GEE (every 3 days) |
 | `${COUNTRY_CODE}-fetch-smap` | `45 9 */3 * *` | SMAP L4 root-zone soil moisture |
 | `${COUNTRY_CODE}-fetch-wapor` | `0 10 */3 * *` | FAO WAPOR v3 L1 AETI evapotranspiration |

@@ -152,7 +152,7 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
 
     # Fill the CHIRPS V3 → today gap with UCSB CHIRPS-Prelim daily TIFFs.
     # GEE's V3 'sat' product runs ~28 days behind; without this step the
-    # dashboard chart shows a multi-week dead zone before the GFS forecast.
+    # dashboard chart shows a multi-week dead zone before the forecast.
     from . import chirps_prelim
     try:
         prelim_rows = chirps_prelim.run(verbose_logger=verbose_logger)
@@ -165,8 +165,8 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
         "behind_days": 0, "fetched_rows": prelim_rows,
     })
 
-    # Refresh the 15-day GFS rainfall forecast. New issuance every day, so
-    # the button should always pull it — cheap enough (one GFS pull, ~30 rows).
+    # Refresh the 15-day CHIRPS-GEFS rainfall forecast. New issuance every day,
+    # so the button should always pull it — cheap (~3 small HTTP fetches, ~30 rows).
     forecast_rows = _refresh_forecast(verbose_logger)
     results.append({
         "indicator": "chirps-forecast",
@@ -176,7 +176,7 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
 
     # CHIRPS SPI needs a recompute whenever new observed OR forecast pentads
     # landed. prelim.run() already recomputes internally, so we only need to
-    # re-trigger here if the GEE catch-up or the GFS forecast added rows.
+    # re-trigger here if the GEE catch-up or the CHIRPS-GEFS forecast added rows.
     chirps_changed = any(
         r["indicator"] in ("chirps", "chirps-forecast") and r["fetched_rows"] > 0
         for r in results
@@ -191,14 +191,14 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
 
 
 def _refresh_forecast(verbose_logger: Callable[[str], None]) -> int:
-    """Pull the latest GFS 15-day forecast and merge into CHIRPS parquets.
+    """Pull the latest CHIRPS-GEFS 15-day forecast and merge into CHIRPS parquets.
     Mirrors run_etl.cmd_forecast: a fresh issuance fully supersedes the prior
     one, so purge existing forecast rows before writing (they sit on a rolling
     date grid that upsert_raw never overwrites, otherwise they accumulate), and
     keep only future-dated pentads. Returns rows written (0 on failure)."""
     from .indicators.chirps import CHIRPS
     issuance = date.today() - timedelta(days=1)
-    verbose_logger(f"🌧️  forecast: pulling GFS 15-day (issuance {issuance})")
+    verbose_logger(f"🌧️  forecast: pulling CHIRPS-GEFS 15-day (issuance {issuance})")
     try:
         df = CHIRPS().fetch_forecast(issuance)
     except Exception as e:

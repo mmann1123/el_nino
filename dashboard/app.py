@@ -47,8 +47,8 @@ INDICATOR_HELP = {
         "last 3 months of rainfall have been compared to 1981–present at this "
         "location and time of year. **0 = typical**, **−1 = moderate drought**, "
         "**−1.5 = severe drought**. Source: CHIRPS v3. "
-        "**15-day forecast** is from NOAA GFS 0.25° (raw, not bias-corrected to "
-        "CHIRPS — GFS tends to over-predict in the tropics)."
+        "**15-day forecast** is from CHIRPS-GEFS v3 — NOAA GEFSv12 bias-corrected "
+        "to the CHIRPS historical distribution via quantile matching."
     ),
     "smap": (
         "**Root-zone soil moisture (0–100 cm)** — water available to maize roots. "
@@ -208,8 +208,8 @@ if _refresh_allowed:
         "🔄 Check for new data",
         help=(
             "Queries Earth Engine for the latest data, pulls UCSB CHIRPS-Prelim "
-            "to fill the recent gap, and refreshes the 15-day GFS rainfall "
-            "forecast. Limited to once per 12 hours across all users."
+            "to fill the recent gap, and refreshes the 15-day CHIRPS-GEFS "
+            "rainfall forecast. Limited to once per 12 hours across all users."
         ),
     )
     if reload_clicked:
@@ -597,7 +597,7 @@ with st.expander("About this data"):
     st.markdown(f"""
     **Indicators** (refresh cadence in parentheses):
     - **CHIRPS v3** rainfall + SPI-1/3/6 ({INDICATORS['chirps'].freshness.expected_cadence_days} days)
-    - **NOAA GFS0P25** 15-day rainfall forecast (daily refresh, uncalibrated — GFS over-predicts in the tropics)
+    - **CHIRPS-GEFS v3** 15-day rainfall forecast (daily refresh; GEFSv12 bias-corrected to the CHIRPS distribution by UCSB)
     - **SMAP L4** root-zone soil moisture ({INDICATORS['smap'].freshness.expected_cadence_days} days)
     - **FAO WAPOR v3** L1 AETI (dekadal, ~300 m) ({INDICATORS['wapor'].freshness.expected_cadence_days} days)
     - **IMERG-Late V07** daily rainfall ({INDICATORS['imerg'].freshness.expected_cadence_days} day)

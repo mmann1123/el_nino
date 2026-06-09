@@ -60,7 +60,7 @@ create_scheduler "${COUNTRY_CODE}-prelim" \
 
 create_scheduler "${COUNTRY_CODE}-forecast" \
   "15 9 * * *" \
-  "NOAA GFS 15-day rainfall forecast" \
+  "CHIRPS-GEFS v3 15-day rainfall forecast (bias-corrected)" \
   "-m,el_nino.etl.run_etl,forecast"
 
 create_scheduler "${COUNTRY_CODE}-fetch-chirps" \

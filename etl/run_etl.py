@@ -97,12 +97,12 @@ def cmd_prelim(args) -> None:
 
 
 def cmd_forecast(args) -> None:
-    """Pull the latest 15-day rainfall forecast (NOAA GFS) and merge into CHIRPS."""
+    """Pull the latest 15-day CHIRPS-GEFS forecast and merge into CHIRPS."""
     config.ensure_dirs()
     from .indicators.chirps import CHIRPS, recompute_spi_for_all_parquets
     indicator = CHIRPS()
     issuance = args.issuance or (config.today() - timedelta(days=1))
-    print(f"Fetching GFS 15-day forecast (issuance {issuance})")
+    print(f"Fetching CHIRPS-GEFS 15-day forecast (issuance {issuance})")
     df = indicator.fetch_forecast(issuance)
 
     from . import storage
@@ -235,9 +235,9 @@ def main() -> None:
                           help="default: yesterday")
     p_prelim.set_defaults(func=cmd_prelim)
 
-    p_fc = sub.add_parser("forecast", help="pull NOAA GFS 15-day rainfall forecast")
+    p_fc = sub.add_parser("forecast", help="pull CHIRPS-GEFS 15-day rainfall forecast")
     p_fc.add_argument("--issuance", type=_parse_date, default=None,
-                      help="GFS issuance date (default: yesterday)")
+                      help="CHIRPS-GEFS issuance date (default: yesterday; falls back further if unpublished)")
     p_fc.set_defaults(func=cmd_forecast)
 
     p_back = sub.add_parser("backfill", help="chunked historical backfill from GEE")

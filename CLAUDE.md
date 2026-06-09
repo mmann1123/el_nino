@@ -43,7 +43,7 @@ COUNTRY=haiti streamlit run el_nino/dashboard/app.py
 python -m el_nino.etl.aoi.fetch_aoi                                   # one-time AOI bootstrap
 python -m el_nino.etl.run_etl backfill --indicator chirps --start 1981-01-01
 python -m el_nino.etl.run_etl prelim                                 # UCSB CHIRPS-Prelim gap fill
-python -m el_nino.etl.run_etl forecast                               # NOAA GFS 15-day
+python -m el_nino.etl.run_etl forecast                               # CHIRPS-GEFS 15-day (bias-corrected)
 python -m el_nino.etl.run_etl finalize                               # SPI + climatology + anomaly + freshness
 
 # Re-run trigger calibration after a data refresh:
@@ -72,8 +72,9 @@ parquets. There is no linter config or build step.
 
 `synth` (local fake data) · `fetch` (one small GEE window) · `backfill`
 (chunked historical pull) · `prelim` (CHIRPS-Prelim gap fill) · `forecast`
-(GFS) · `climatology` · `enso` (NOAA ONI) · `finalize` (SPI recompute →
-climatology → anomaly z-scores → freshness). `synth` ends by calling `finalize`.
+(CHIRPS-GEFS, streamed from UCSB) · `climatology` · `enso` (NOAA ONI) ·
+`finalize` (SPI recompute → climatology → anomaly z-scores → freshness).
+`synth` ends by calling `finalize`.
 
 ## Architecture
 

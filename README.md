@@ -11,7 +11,7 @@ Indicators (refresh cadence in parentheses):
 | Source | Variable | Cadence |
 |---|---|---|
 | [CHIRPS v3](https://www.chc.ucsb.edu/data/chirps) (UCSB) | Pentadal rainfall + SPI-1/3/6 | 3 days (GEE) + UCSB CHIRPS-Prelim fill for the last few weeks |
-| [NOAA GFS 0.25°](https://www.nco.ncep.noaa.gov/pmb/products/gfs/) | 15-day rainfall forecast | daily |
+| [CHIRPS-GEFS v3](https://www.chc.ucsb.edu/data/chirps-gefs) (UCSB) | 15-day rainfall forecast, bias-corrected GEFSv12 | daily |
 | [SMAP L4](https://smap.jpl.nasa.gov/) (NASA) | Root-zone soil moisture (0–100 cm) | 3 days |
 | [FAO WAPOR v3](https://wapor.apps.fao.org/) | L1 AETI evapotranspiration (~300 m, dekadal) | 10 days |
 | [IMERG-Late V07](https://gpm.nasa.gov/data/imerg) (NASA) | Daily rainfall (event scale) | daily |
@@ -91,7 +91,7 @@ python -m el_nino.etl.run_etl backfill --indicator wapor  --start 1981-01-01
 python -m el_nino.etl.run_etl backfill --indicator imerg  --start 2000-06-01
 
 # Fill the last few weeks (CHIRPS V3 has ~28-day latency; UCSB CHIRPS-Prelim
-# is ~3-day latency) and pull the 15-day GFS forecast
+# is ~3-day latency) and pull the 15-day CHIRPS-GEFS forecast
 python -m el_nino.etl.run_etl prelim
 python -m el_nino.etl.run_etl forecast
 
@@ -156,7 +156,7 @@ el_nino.etl.aoi.fetch_aoi`, and the same code paths handle it.
 | Job | Cron (UTC) | Purpose |
 |---|---|---|
 | `${CC}-prelim` | 09:00 daily | Fill the GEE → today gap with UCSB CHIRPS-Prelim |
-| `${CC}-forecast` | 09:15 daily | Pull the latest 15-day GFS rainfall forecast |
+| `${CC}-forecast` | 09:15 daily | Pull the latest 15-day CHIRPS-GEFS rainfall forecast (bias-corrected) |
 | `${CC}-fetch-chirps` | 09:30 every 3 days | CHIRPS V3 pentad refresh |
 | `${CC}-fetch-smap` | 09:45 every 3 days | SMAP L4 root-zone soil moisture |
 | `${CC}-fetch-wapor` | 10:00 every 3 days | FAO WAPOR ETa |
@@ -167,7 +167,7 @@ See [deploy/schedule.sh](deploy/schedule.sh) for the scheduler entries.
 **Interactively** (the "🔄 Check for new data" sidebar button):
 
 Triggers the same flow in a single click — GEE catch-up → CHIRPS-Prelim gap
-fill → GFS forecast → CHIRPS SPI recompute. Rate-limited to **once per 12
+fill → CHIRPS-GEFS forecast → CHIRPS SPI recompute. Rate-limited to **once per 12
 hours across all users** per country via a lock file at
 `STORAGE_ROOT/last_refresh.json` (see [dashboard/refresh_lock.py](dashboard/refresh_lock.py)).
 

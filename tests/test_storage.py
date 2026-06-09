@@ -73,9 +73,9 @@ class TestReadParquet:
 
 
 class TestDropAllForecasts:
-    """Guards the forecast-accumulation fix: GFS forecast pentads sit on a
-    rolling issuance-date grid that upsert_raw never overwrites, so they must be
-    purged explicitly before a new issuance is written — otherwise stale/past and
+    """Guards the forecast-accumulation fix: forecast pentads sit on a rolling
+    issuance-date grid that upsert_raw never overwrites, so they must be purged
+    explicitly before a new issuance is written — otherwise stale/past and
     stacked forecasts pile up in the chirps parquets."""
 
     def _write(self, dep, observed_dates, forecast_dates):

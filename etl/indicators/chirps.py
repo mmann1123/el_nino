@@ -99,83 +99,34 @@ class CHIRPS(Indicator):
         # Use v2 for the climatology baseline; v3 only for the recent (post-2023) window.
         return self.DAILY_V3 if start >= date(2023, 12, 1) else self.DAILY_V2
 
-    # ---- 15-day rainfall forecast (NOAA GFS0P25) ----
+    # ---- 15-day rainfall forecast (CHIRPS-GEFS v3) ----
     #
-    # CHIRPS-GEFS (the CHIRPS-bias-corrected forecast) isn't in the public GEE
-    # catalog — it requires Climate Engine asset sharing we don't have. So we
-    # use raw NOAA GFS 0.25° precipitation_rate instead. GFS over Central
-    # America is documented to over-predict by ~40 mm (per el_nino/notes.md),
-    # so values shown here are "uncalibrated forecast" — caveat displayed in
-    # the dashboard.
-    GFS_ASSET = "NOAA/GFS0P25"
+    # UCSB's bias-corrected GEFSv12 forecast, quantile-matched to the CHIRPS
+    # distribution. Streamed directly from data.chc.ucsb.edu via /vsicurl/ —
+    # see etl/chirps_gefs.py. No GEE quota, no permanent file storage.
 
     def fetch_forecast(self, issuance_date: date | None = None) -> pd.DataFrame:
-        """Pull the latest GFS issuance and aggregate to 3 forward pentads (15 days).
+        """Pull the latest CHIRPS-GEFS issuance and return 3 forward 5-day pentads.
 
         Returns one row per (pentad_end_date, departamento) with
         precip_pentad_mm and is_forecast=True. SPI columns are left null and
         get populated by `recompute_spi_for_all_parquets()` after merge.
+
+        If `issuance_date` is None or that day's files aren't published yet,
+        walks back up to 3 days to find the latest fully-published issuance.
         """
-        import ee
-        from datetime import timedelta as _td
-        from .. import gee as _gee
-        _gee.init()
+        from .. import chirps_gefs
 
-        # Pick the most recent issuance that has the full 360-hour horizon.
-        target = issuance_date or (date.today() - _td(days=1))
-        coll = (
-            ee.ImageCollection(self.GFS_ASSET)
-            .filterDate(target.isoformat(), (target + _td(days=2)).isoformat())
-            .filter(ee.Filter.lte("forecast_hours", 360))
-            .filter(ee.Filter.gt("forecast_hours", 0))
-        )
-        n = coll.size().getInfo()
-        if n == 0:
-            return pd.DataFrame()
+        target = issuance_date
+        if target is None or not chirps_gefs.issuance_available(target):
+            target = chirps_gefs.latest_available_issuance()
+            if target is None:
+                return pd.DataFrame()
 
-        # Pick the latest issuance (max creation_time) and restrict to it.
-        latest_creation = coll.aggregate_max("creation_time").getInfo()
-        coll = coll.filter(ee.Filter.eq("creation_time", latest_creation))
-
-        # precipitation_rate is kg/m²/s = mm/s. GFS time-step is 1 h up to
-        # forecast_hours=120, then 3 h. Multiply each image's rate by its step
-        # length to get mm accumulated over that step.
-        def to_mm_per_step(img):
-            hours = ee.Number(img.get("forecast_hours"))
-            step_seconds = ee.Algorithms.If(hours.lte(120), 3600, 3 * 3600)
-            return (
-                img.select("precipitation_rate")
-                .multiply(ee.Number(step_seconds))
-                .rename("precip_mm_step")
-                .copyProperties(img, ["system:time_start", "forecast_hours"])
-            )
-
-        mm_coll = coll.map(to_mm_per_step)
-
-        # Three forward 5-day windows: [0-120h], [120-240h], [240-360h]
-        pentad_imgs = []
-        for i in range(3):
-            h_start = i * 120
-            h_end = (i + 1) * 120
-            pent_subset = mm_coll.filter(ee.Filter.And(
-                ee.Filter.gt("forecast_hours", h_start),
-                ee.Filter.lte("forecast_hours", h_end),
-            ))
-            pent_total = pent_subset.sum().rename("precip_pentad_mm")
-            pent_end = target + _td(days=(i + 1) * 5)
-            pent_total = pent_total.set("system:time_start", ee.Date(pent_end.isoformat()).millis())
-            pentad_imgs.append(pent_total)
-
-        fc_coll = ee.ImageCollection.fromImages(pentad_imgs)
-        df = self.reduce_imagecollection_by_departamento(fc_coll, band="precip_pentad_mm")
+        df = chirps_gefs.fetch_pentad_totals(target)
         if df.empty:
             return df
-        df = df.rename(columns={"value": "precip_pentad_mm"})
-        df["date"] = pd.to_datetime(df["date"])
-        df["year"] = df["date"].dt.year
-        df["pentad"] = ((df["date"].dt.dayofyear - 1) // 5) + 1
-        df.loc[df["pentad"] > 73, "pentad"] = 73
-        df["date"] = df["date"].dt.date
+        df["date"] = pd.to_datetime(df["date"]).dt.date
         df["is_forecast"] = True
         for col in ("spi_1", "spi_3", "spi_6"):
             df[col] = pd.NA  # filled in by recompute_spi_for_all_parquets
