@@ -29,7 +29,7 @@ def get_con() -> duckdb.DuckDBPyConnection:
     return duckdb.connect(database=":memory:")
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def list_departamentos() -> list[str]:
     deps: set[str] = set()
     country = config.country_departments()  # frozenset; empty = no filter
@@ -50,7 +50,7 @@ def list_departamentos() -> list[str]:
     return [ALL] + sorted(deps)
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def load_indicator(indicator: str, departamento: str) -> pd.DataFrame:
     if departamento == ALL:
         return _load_indicator_all(indicator)
@@ -107,7 +107,7 @@ def _load_indicator_all(indicator: str) -> pd.DataFrame:
     return out.sort_values("date").reset_index(drop=True)
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def load_climatology(indicator: str, departamento: str, value_column: str) -> pd.DataFrame:
     clim = climatology.load(indicator)
     if clim.empty:
@@ -140,18 +140,18 @@ def load_climatology(indicator: str, departamento: str, value_column: str) -> pd
     return out.sort_values("doy").reset_index(drop=True)
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def load_enso() -> pd.DataFrame:
     return enso.load()
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def latest_nino34() -> dict | None:
     """Freshest weekly Niño 3.4 reading, or None if not fetched yet."""
     return enso.latest_nino34()
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def latest_observations() -> pd.DataFrame:
     """One row per (indicator, departamento) at the most recent date."""
     out: list[pd.DataFrame] = []

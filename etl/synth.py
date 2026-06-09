@@ -219,6 +219,10 @@ def _last_obs(indicator: str) -> date | None:
         df = storage.read_parquet(parquet)
         if df.empty:
             continue
+        if "is_forecast" in df.columns:
+            df = df[~df["is_forecast"].fillna(False)]
+        if df.empty:
+            continue
         d = pd.to_datetime(df["date"]).max().date()
         if latest is None or d > latest:
             latest = d
