@@ -91,13 +91,15 @@ create_scheduler "${COUNTRY_CODE}-enso" \
   "NOAA CPC ONI + weekly Niño 3.4 SST anomaly" \
   "-m,el_nino.etl.run_etl,enso"
 
-# The scheduler-invoking service account needs run.invoker on the job. Grant
-# it (idempotent — repeat calls are no-op).
+# Executing a Cloud Run *Job* needs the `run.jobs.run` permission, which lives
+# in roles/run.developer — NOT roles/run.invoker (that only invokes *services*).
+# Granting run.invoker here was a bug: the scheduler fired but every run failed
+# with PERMISSION_DENIED (code 7). Idempotent — repeat calls are no-op.
 echo
-echo "=> Granting scheduler SA run.invoker on the Cloud Run Job"
+echo "=> Granting scheduler SA run.developer on the Cloud Run Job"
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/run.invoker" \
+  --role="roles/run.developer" \
   --condition=None \
   --quiet >/dev/null
 
