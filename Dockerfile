@@ -20,6 +20,10 @@ RUN pip install --no-cache-dir -r /app/el_nino/requirements.txt
 
 COPY el_nino /app/el_nino
 
+# Streamlit reads .streamlit/config.toml from the launch CWD (/app here), not
+# from the script's folder — so place the theme config at /app/.streamlit/.
+COPY el_nino/.streamlit /app/.streamlit
+
 ENV PYTHONPATH=/app
 ENV STORAGE_ROOT=/mnt/gcs
 # Public dashboards — no sign-in gate. Set AUTH_MODE=oidc + ALLOWED_EMAILS at

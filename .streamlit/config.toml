@@ -1,0 +1,13 @@
+# Streamlit configuration for the drought dashboard.
+#
+# IMPORTANT: Streamlit loads this from the *launch directory* (CWD) or
+# ~/.streamlit/ — NOT from the script's folder. So it applies when you run from
+# inside el_nino/ (`cd el_nino && streamlit run dashboard/app.py`) and in the
+# container (WORKDIR /app, with this file copied to /app/.streamlit/). To force
+# it when launching from the parent dir, add `--theme.base light` or export
+# STREAMLIT_THEME_BASE=light.
+
+[theme]
+# Force the light theme regardless of the viewer's OS/browser dark-mode setting.
+base = "light"
+primaryColor = "#d32f2f"

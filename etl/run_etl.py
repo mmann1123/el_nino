@@ -81,6 +81,13 @@ def cmd_fetch(args) -> None:
     for dep, group in df.groupby("departamento"):
         storage.upsert_raw(args.indicator, dep, group.copy())
     print(f"  wrote {len(df)} rows across {df['departamento'].nunique()} departamentos")
+    # CHIRPS' primary column is SPI, which must be recomputed across the full
+    # record before the anomaly z-scores below are meaningful.
+    if args.indicator == "chirps":
+        from .indicators.chirps import recompute_spi_for_all_parquets
+        recompute_spi_for_all_parquets()
+    # Attach value_anom_z so the drought-status badge + map reflect the new rows.
+    synth.attach_anomaly_z(args.indicator)
     refresh_check._update_freshness()
 
 
@@ -91,6 +98,7 @@ def cmd_prelim(args) -> None:
     config.ensure_dirs()
     from . import chirps_prelim
     chirps_prelim.run(verbose_logger=print, start=args.start, end=args.end)
+    synth.attach_anomaly_z("chirps")  # so the badge/map reflect the gap-fill rows
     from . import refresh_check
     refresh_check._update_freshness()
     print("Done.")
@@ -118,6 +126,7 @@ def cmd_forecast(args) -> None:
     if df.empty:
         print("  (no forecast data returned — stale forecasts cleared)")
         recompute_spi_for_all_parquets()
+        synth.attach_anomaly_z("chirps")
         from . import refresh_check
         refresh_check._update_freshness()
         print("Done.")
@@ -132,6 +141,7 @@ def cmd_forecast(args) -> None:
     print(f"  wrote {len(df)} forecast pentads across {df['departamento'].nunique()} departamentos")
     print("Recomputing SPI across observed + forecast...")
     recompute_spi_for_all_parquets()
+    synth.attach_anomaly_z("chirps")  # so the badge/map reflect the new rows
     from . import refresh_check
     refresh_check._update_freshness()
     print("Done.")

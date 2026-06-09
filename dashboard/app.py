@@ -24,7 +24,18 @@ import streamlit as st  # noqa: E402
 from el_nino import config  # noqa: E402
 from el_nino.etl import enso  # noqa: E402
 from el_nino.etl.indicators import INDICATORS  # noqa: E402
-from el_nino.dashboard import alerts, auth, charts, data, drought_status, freshness, map as map_view, refresh_lock, site_footer, status as status_view  # noqa: E402
+from el_nino.dashboard import (
+    alerts,
+    auth,
+    charts,
+    data,
+    drought_status,
+    freshness,
+    map as map_view,
+    refresh_lock,
+    site_footer,
+    status as status_view,
+)  # noqa: E402
 
 st.set_page_config(
     page_title=f"{config.CC['display_name']} Drought Monitor",
@@ -69,9 +80,9 @@ INDICATOR_HELP = {
 # Per-indicator baseline window — different products start at different years.
 INDICATOR_BASELINE = {
     "chirps": "1981–present",
-    "smap":   "2015–present",
-    "wapor":  "2018–present",
-    "imerg":  "2000–present",
+    "smap": "2015–present",
+    "wapor": "2018–present",
+    "imerg": "2000–present",
 }
 
 # Human-readable y-axis labels — used everywhere the primary_column would
@@ -106,7 +117,9 @@ today_ = config.today()
 # desktop (the richer experience).
 import re  # noqa: E402
 
-_MOBILE_UA_RE = re.compile(r"Mobi|Android|iPhone|iPod|IEMobile|BlackBerry|Opera Mini", re.I)
+_MOBILE_UA_RE = re.compile(
+    r"Mobi|Android|iPhone|iPod|IEMobile|BlackBerry|Opera Mini", re.I
+)
 
 
 def _is_mobile() -> bool:
@@ -122,14 +135,15 @@ CHART_CFG = charts.chart_config(IS_MOBILE)
 
 # ---------- Sidebar ----------
 
+
 def _header_icon_html() -> str:
     """Inline-embed the drought icon from dashboard/assets/drought.png (or .svg)
     as base64 so it ships with the app and doesn't depend on static serving.
     Falls back to a desert emoji if the asset isn't present yet."""
     import base64
+
     assets = Path(__file__).resolve().parent / "assets"
-    for name, mime in (("drought.png", "image/png"),
-                       ("drought.svg", "image/svg+xml")):
+    for name, mime in (("drought.png", "image/png"), ("drought.svg", "image/svg+xml")):
         p = assets / name
         if p.exists() and p.stat().st_size > 0:
             b64 = base64.b64encode(p.read_bytes()).decode("ascii")
@@ -152,8 +166,12 @@ st.sidebar.caption(f"{config.CC['display_name']} {config.CC['crop_focus_caption'
 
 deps_available = data.list_departamentos()
 if not deps_available:
-    st.sidebar.warning("No data found. Run the ETL first:\n\n`python -m el_nino.etl.run_etl synth`")
-    st.warning("No indicator data available yet. The ETL needs to populate `data/raw/`. See sidebar.")
+    st.sidebar.warning(
+        "No data found. Run the ETL first:\n\n`python -m el_nino.etl.run_etl synth`"
+    )
+    st.warning(
+        "No indicator data available yet. The ETL needs to populate `data/raw/`. See sidebar."
+    )
     st.stop()
 
 default_dep = data.ALL if data.ALL in deps_available else deps_available[0]
@@ -170,7 +188,8 @@ def _on_dep_dropdown_changed() -> None:
 # widget or by a click on the country map below).
 default_idx = deps_available.index(st.session_state.get("dep_choice", default_dep))
 departamento = st.sidebar.selectbox(
-    config.CC["dept_term"].capitalize(), deps_available,
+    config.CC["dept_term"].capitalize(),
+    deps_available,
     index=default_idx,
     on_change=_on_dep_dropdown_changed,
     help=(
@@ -194,7 +213,8 @@ indicator_cls = INDICATORS[indicator_name]
 st.sidebar.caption(INDICATOR_HELP.get(indicator_name, ""))
 
 show_forecast = st.sidebar.toggle(
-    "Show 15-day forecast (where available)", value=True,
+    "Show 15-day forecast (where available)",
+    value=True,
     help="Append the CHIRPS3-GEFS 15-day rainfall forecast as a dashed segment.",
 )
 
@@ -216,10 +236,13 @@ if _refresh_allowed:
         with st.sidebar.status("Checking source assets…", expanded=True) as status:
             try:
                 from el_nino.etl import refresh_check
+
                 results = refresh_check.run(verbose_logger=lambda m: status.write(m))
                 any_changed = any(r["fetched_rows"] > 0 for r in results)
                 if any_changed:
-                    status.update(label="Found new data — fetched and merged.", state="complete")
+                    status.update(
+                        label="Found new data — fetched and merged.", state="complete"
+                    )
                 else:
                     status.update(label="Already up to date.", state="complete")
                 refresh_lock.record_refresh()
@@ -260,13 +283,17 @@ tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
 # ============= Tab 1 — Overview =============
 with tabs[0]:
     st.subheader(f"Overview — {departamento}")
-    st.caption("Each panel shows the current year against the historical climatology envelope for the past 12 months.")
+    st.caption(
+        "Each panel shows the current year against the historical climatology envelope for the past 12 months."
+    )
 
     # Country-wide status mini-map. Click events on the polygons re-select the
     # corresponding departamento in the sidebar dropdown.
     map_col, legend_col = st.columns([3, 1])
     with map_col:
-        map_fig = map_view.departamento_status_figure(indicator_name, selected_departamento=departamento)
+        map_fig = map_view.departamento_status_figure(
+            indicator_name, selected_departamento=departamento
+        )
         if map_fig is not None:
             st.markdown(
                 f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all {config.CC['dept_term_plural']}**  \n"
@@ -317,14 +344,21 @@ with tabs[0]:
                 st.session_state["dep_choice"] = clicked_dep
                 st.rerun()
         else:
-            st.info("Map unavailable — run `python -m el_nino.etl.aoi.fetch_aoi` to fetch the AOI polygons.")
+            st.info(
+                "Map unavailable — run `python -m el_nino.etl.aoi.fetch_aoi` to fetch the AOI polygons."
+            )
     with legend_col:
         st.markdown("**Legend**")
         for cat in [
-            drought_status.W3, drought_status.W2, drought_status.W1,
+            drought_status.W3,
+            drought_status.W2,
+            drought_status.W1,
             drought_status.NORMAL,
-            drought_status.D0, drought_status.D1, drought_status.D2,
-            drought_status.D3, drought_status.D4,
+            drought_status.D0,
+            drought_status.D1,
+            drought_status.D2,
+            drought_status.D3,
+            drought_status.D4,
         ]:
             st.markdown(
                 f"<div style='display:flex;align-items:center;margin:2px 0;'>"
@@ -342,7 +376,7 @@ with tabs[0]:
     # department map as country-wide context.
     oni_df = data.load_enso()
     if not oni_df.empty:
-        st.subheader("El Niño / La Niña tracker — this year vs analog years")
+        st.subheader("El Niño / La Niña tracker & Comparison")
         available_enso_years = sorted(oni_df["year"].dropna().unique().tolist())
         el_nino_yrs = [y for y in NOTABLE_EL_NINO_YEARS if y in available_enso_years]
         la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_enso_years]
@@ -363,7 +397,9 @@ with tabs[0]:
         # also had its value set via the Session State API" warning.
         st.session_state.setdefault("enso_selected_years", [])
         st.session_state["enso_selected_years"] = [
-            y for y in st.session_state["enso_selected_years"] if y in available_enso_years
+            y
+            for y in st.session_state["enso_selected_years"]
+            if y in available_enso_years
         ]
         selected_enso = st.multiselect(
             "Years to overlay on the current year",
@@ -379,7 +415,10 @@ with tabs[0]:
 
         latest34 = data.latest_nino34()
         enso_fig = charts.enso_year_compare_figure(
-            oni_df, today_, analogs=enso_analogs, latest_nino34=latest34,
+            oni_df,
+            today_,
+            analogs=enso_analogs,
+            latest_nino34=latest34,
         )
         st.plotly_chart(enso_fig, width="stretch", config=CHART_CFG)
         latest_oni = oni_df.sort_values("date").iloc[-1]
@@ -412,7 +451,9 @@ with tabs[0]:
             primary = ind_cls.primary_column
             clim = data.load_climatology(ind_name, departamento, primary)
             window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)
-            current = ind_df[ind_df["date"] >= window_start][["date", primary, "is_forecast"]].dropna(subset=[primary])
+            current = ind_df[ind_df["date"] >= window_start][
+                ["date", primary, "is_forecast"]
+            ].dropna(subset=[primary])
             fig = charts.climatology_envelope_figure(
                 title="",
                 value_label=yaxis_label_for(primary),
@@ -426,7 +467,9 @@ with tabs[0]:
             st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
             latest_z, latest_obs = status_view.current_status_value(
-                ind_df, ind_cls.status_window_days, today_,
+                ind_df,
+                ind_cls.status_window_days,
+                today_,
             )
             cat = drought_status.classify(latest_z)
             st.markdown(
@@ -456,9 +499,13 @@ with tabs[1]:
     else:
         clim = data.load_climatology(indicator_name, departamento, primary)
         window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)
-        cur = ind_df[ind_df["date"] >= window_start][["date", primary, "is_forecast"]].dropna(subset=[primary])
+        cur = ind_df[ind_df["date"] >= window_start][
+            ["date", primary, "is_forecast"]
+        ].dropna(subset=[primary])
         if not show_forecast:
-            cur = cur[~cur.get("is_forecast", pd.Series([False] * len(cur))).fillna(False)]
+            cur = cur[
+                ~cur.get("is_forecast", pd.Series([False] * len(cur))).fillna(False)
+            ]
 
         fig = charts.climatology_envelope_figure(
             title="",
@@ -475,7 +522,9 @@ with tabs[1]:
         # of OBSERVED rows only (skips forecasts so the badge never reports a
         # 15-day-ahead projection as the current state).
         latest_z, latest_obs = status_view.current_status_value(
-            ind_df, indicator_cls.status_window_days, today_,
+            ind_df,
+            indicator_cls.status_window_days,
+            today_,
         )
         cat = drought_status.classify(latest_z)
         st.markdown("### Current status")
@@ -496,9 +545,15 @@ with tabs[1]:
             st.caption(cat.description)
 
         with st.expander("Show technical details"):
-            st.write(f"Latest anomaly z-score: {latest_z:.2f}" if latest_z is not None and not pd.isna(latest_z) else "Latest anomaly z-score: —")
+            st.write(
+                f"Latest anomaly z-score: {latest_z:.2f}"
+                if latest_z is not None and not pd.isna(latest_z)
+                else "Latest anomaly z-score: —"
+            )
             st.write(f"Primary column: `{primary}`")
-            st.write(f"Baseline period for {INDICATOR_LABELS[indicator_name]}: {INDICATOR_BASELINE[indicator_name]} (per-DOY percentiles)")
+            st.write(
+                f"Baseline period for {INDICATOR_LABELS[indicator_name]}: {INDICATOR_BASELINE[indicator_name]} (per-DOY percentiles)"
+            )
 
         # Climatology-smoothing caption + diagnostic mini-chart
         window = getattr(indicator_cls, "climatology_doy_window", 0)
@@ -522,7 +577,9 @@ with tabs[1]:
 # ============= Tab 3 — Year Compare =============
 with tabs[2]:
     primary = indicator_cls.primary_column
-    st.subheader(f"Compare years — {INDICATOR_LABELS[indicator_name]} in {departamento}")
+    st.subheader(
+        f"Compare years — {INDICATOR_LABELS[indicator_name]} in {departamento}"
+    )
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
@@ -572,12 +629,16 @@ with tabs[2]:
 
         analogs = {}
         for y in selected:
-            yr_df = ind_df[ind_df["year"] == y][["date", primary]].dropna(subset=[primary])
+            yr_df = ind_df[ind_df["year"] == y][["date", primary]].dropna(
+                subset=[primary]
+            )
             if not yr_df.empty:
                 analogs[y] = yr_df
 
         window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)
-        cur = ind_df[ind_df["date"] >= window_start][["date", primary, "is_forecast"]].dropna(subset=[primary])
+        cur = ind_df[ind_df["date"] >= window_start][
+            ["date", primary, "is_forecast"]
+        ].dropna(subset=[primary])
 
         fig = charts.climatology_envelope_figure(
             title="",

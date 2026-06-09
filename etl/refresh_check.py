@@ -185,6 +185,17 @@ def run(verbose_logger: Callable[[str], None] = print) -> list[dict]:
         verbose_logger("🔁 Recomputing CHIRPS SPI…")
         recompute_spi_for_all_parquets()
 
+    # Re-attach anomaly z-scores so the drought-status badges and the map
+    # reflect the rows we just fetched. status.py drops rows with NaN
+    # value_anom_z, so without this the badge/map lag the chart line. Cheap —
+    # a per-DOY climatology join, no GEE — so run it for every indicator.
+    from . import synth
+    for name in INDICATORS:
+        try:
+            synth.attach_anomaly_z(name)
+        except Exception as e:
+            verbose_logger(f"⚠️  {name}: anomaly z-score recompute failed — {e}")
+
     # Update freshness.json from whatever's now on disk.
     _update_freshness()
     return results
