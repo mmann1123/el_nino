@@ -59,11 +59,10 @@ ENSO_LA_NINA_BAND = "rgba(25, 118, 210, 0.12)"
 
 
 def _oni_climatology(df: pd.DataFrame) -> pd.DataFrame:
-    """Per-calendar-month mean and standard deviation of ONI across the whole
-    record, interpolated to a daily [doy, p05..p95] climatology so it renders
-    through climatology_envelope_figure exactly like the indicator charts. The
-    bands map to mean ± 1 SD (inner) and mean ± 2 SD (outer); the centre line is
-    the mean.
+    """Per-calendar-month *empirical percentiles* of ONI across the whole record,
+    interpolated to a daily [doy, p05/p25/p50/p75/p95] climatology so it renders
+    through climatology_envelope_figure exactly like the indicator charts — and
+    makes no normality assumption (ONI is fat-tailed during strong events).
 
     Daily (not 12-point monthly) resolution matters: the envelope's past/future
     halves overlap by one sample at Today to avoid a seam, so coarse monthly
@@ -77,31 +76,23 @@ def _oni_climatology(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     d["date"] = pd.to_datetime(d["date"])
     d["month"] = d["date"].dt.month
-    g = d.groupby("month")["oni"].agg(mean="mean", std="std").reset_index()
-    g["std"] = g["std"].fillna(0.0)
-    g = g.sort_values("month")
 
-    anchor_doy = [pd.Timestamp(2001, int(m), 15).dayofyear for m in g["month"]]
-    means = list(g["mean"]); stds = list(g["std"])
+    probs = {"p05": 0.05, "p25": 0.25, "p50": 0.50, "p75": 0.75, "p95": 0.95}
+    q = d.groupby("month")["oni"].quantile(list(probs.values())).unstack()
+    q.columns = list(probs.keys())
+    q = q.reindex(range(1, 13)).interpolate().bfill().ffill().sort_index()
+
+    anchor_doy = [pd.Timestamp(2001, int(m), 15).dayofyear for m in q.index]
     # Circular padding so January interpolates against December and vice-versa.
-    ext_doy = [anchor_doy[-1] - 365] + anchor_doy + [anchor_doy[0] + 365]
-    ext_mean = [means[-1]] + means + [means[0]]
-    ext_std = [stds[-1]] + stds + [stds[0]]
-
+    ext_doy = np.array([anchor_doy[-1] - 365] + anchor_doy + [anchor_doy[0] + 365])
     days = np.arange(1, 366)
-    mean_d = np.interp(days, ext_doy, ext_mean)
-    std_d = np.interp(days, ext_doy, ext_std)
 
-    return pd.DataFrame({
-        "doy": days,
-        "p05": mean_d - 2 * std_d,
-        "p10": mean_d - 2 * std_d,
-        "p25": mean_d - std_d,
-        "p50": mean_d,
-        "p75": mean_d + std_d,
-        "p90": mean_d + 2 * std_d,
-        "p95": mean_d + 2 * std_d,
-    })
+    out = {"doy": days}
+    for name in probs:
+        vals = q[name].to_numpy()
+        ext = np.concatenate([[vals[-1]], vals, [vals[0]]])
+        out[name] = np.interp(days, ext_doy, ext)
+    return pd.DataFrame(out)
 
 
 def enso_year_compare_figure(
@@ -137,8 +128,9 @@ def enso_year_compare_figure(
 
     analogs = analogs or {}
 
-    # Mean ± SD envelope, computed per calendar month over the whole ONI record
-    # and rendered exactly like the indicator charts' climatology band.
+    # Empirical-percentile envelope, computed per calendar month over the whole
+    # ONI record and rendered exactly like the indicator charts' climatology band
+    # (same percentile fences, same legend labels) — no normality assumption.
     clim = _oni_climatology(df)
 
     fig = climatology_envelope_figure(
@@ -150,9 +142,6 @@ def enso_year_compare_figure(
         analogs=analogs,
         today_=today_,
         last_observation=None,
-        outer_label="Mean ± 2 SD",
-        inner_label="Mean ± 1 SD",
-        median_label="Mean ONI (1950–present)",
     )
 
     # Y-range from everything we draw, so the phase-band shapes can't stretch

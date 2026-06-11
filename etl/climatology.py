@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from .. import config
 from . import storage
 
 CLIMATOLOGY_COLUMNS = ["mu", "sigma", "p05", "p10", "p25", "p50", "p75", "p90", "p95"]
+
+# Minimum DOY-pool size before a nonparametric standardized anomaly is trusted.
+ANOMALY_MIN_SAMPLES = 10
 
 
 def compute_for_indicator(
@@ -108,15 +112,58 @@ def _circular_doy_window(target: int, window: int) -> list[int]:
     return [((target - 1 + d) % 365) + 1 for d in range(-window, window + 1)]
 
 
-def compute_anomaly_z(values: pd.Series, doys: pd.Series, climatology: pd.DataFrame) -> pd.Series:
-    """Standardize a series against per-DOY climatology. Used post-fetch to
-    write the value_anom_z column to the raw parquet."""
-    if climatology.empty:
-        return pd.Series([np.nan] * len(values), index=values.index)
-    lookup = climatology.set_index("doy")[["mu", "sigma"]]
-    mu = doys.map(lookup["mu"])
-    sigma = doys.map(lookup["sigma"]).replace(0, np.nan)
-    return (values - mu) / sigma
+def standardized_anomaly(
+    values: pd.Series,
+    doys: pd.Series,
+    baseline_values: pd.Series,
+    baseline_doys: pd.Series,
+    doy_window: int,
+) -> pd.Series:
+    """Nonparametric standardized index (Farahmand & AghaKouchak 2015).
+
+    For each value, estimate its cumulative probability under the DOY-windowed
+    *baseline* distribution via the Gringorten plotting position —
+    ``p = (m - 0.44) / (n + 0.12)`` where ``m = #{baseline <= value}`` and ``n``
+    is the pool size — then map through the inverse normal CDF. This makes no
+    distributional assumption (handles skewed rainfall / bounded soil moisture),
+    yet lands on a standard-normal scale so the USDM drought bins still apply.
+
+    The baseline pool is built with the SAME circular ±``doy_window`` pooling the
+    percentile fences use, so the badge/map stay consistent with the envelope.
+    Returns NaN where the pool is smaller than ANOMALY_MIN_SAMPLES.
+    """
+    out = pd.Series(np.nan, index=values.index)
+    v = pd.to_numeric(values, errors="coerce").to_numpy(dtype=float)
+    d = np.asarray(doys, dtype=float)
+
+    bdf = pd.DataFrame({
+        "doy": np.asarray(baseline_doys, dtype=float),
+        "v": pd.to_numeric(baseline_values, errors="coerce").to_numpy(dtype=float),
+    }).dropna()
+    if bdf.empty:
+        return out
+    pool_by_doy = {int(k): g["v"].to_numpy() for k, g in bdf.groupby("doy")}
+
+    for target in np.unique(d[~np.isnan(d)]):
+        target = int(target)
+        if doy_window <= 0:
+            pool = pool_by_doy.get(target, np.empty(0))
+        else:
+            parts = [pool_by_doy[x] for x in _circular_doy_window(target, doy_window)
+                     if x in pool_by_doy]
+            pool = np.concatenate(parts) if parts else np.empty(0)
+        n = pool.size
+        if n < ANOMALY_MIN_SAMPLES:
+            continue
+        sorted_pool = np.sort(pool)
+        mask = d == target
+        xv = v[mask]
+        m = np.searchsorted(sorted_pool, xv, side="right")  # #{pool <= value}
+        p = np.clip((m - 0.44) / (n + 0.12), 1e-6, 1 - 1e-6)
+        z = norm.ppf(p)
+        z[np.isnan(xv)] = np.nan
+        out.iloc[np.where(mask)[0]] = z
+    return out
 
 
 def save(indicator_name: str, climatology: pd.DataFrame) -> None:

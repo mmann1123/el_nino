@@ -168,16 +168,14 @@ def synth_imerg(start: date, end: date) -> None:
 
 
 def attach_anomaly_z(indicator_name: str) -> None:
-    """After climatology is computed, write value_anom_z back into the raw parquet
-    for the indicator's primary column."""
+    """Write value_anom_z into each raw parquet using the nonparametric
+    standardized index (see climatology.standardized_anomaly). The reference is
+    the indicator's baseline-year observed history, DOY-pooled with the same
+    window the percentile fences use — so the badge/map agree with the envelope,
+    without assuming the data is normally distributed."""
     indicator_cls = INDICATORS[indicator_name]
-    clim = climatology.load(indicator_name)
-    if clim.empty:
-        return
     primary = indicator_cls.primary_column
-    clim_primary = clim[clim["value_column"] == primary]
-    if clim_primary.empty:
-        return
+    window = getattr(indicator_cls, "climatology_doy_window", 0)
 
     indicator_dir = config.RAW_DIR / indicator_name
     for parquet in sorted(indicator_dir.glob("*.parquet")):
@@ -186,11 +184,16 @@ def attach_anomaly_z(indicator_name: str) -> None:
             continue
         df = df.copy()
         df["date"] = pd.to_datetime(df["date"])
-        df["doy"] = df["date"].dt.dayofyear
-        dep_clim = clim_primary[clim_primary["departamento"] == df["departamento"].iloc[0]]
-        df = df.merge(dep_clim[["doy", "mu", "sigma"]], on="doy", how="left")
-        df["value_anom_z"] = (df[primary] - df["mu"]) / df["sigma"].replace(0, np.nan)
-        df = df.drop(columns=["doy", "mu", "sigma"])
+        doy = df["date"].dt.dayofyear
+        year = df["date"].dt.year
+        is_fc = (df["is_forecast"].fillna(False)
+                 if "is_forecast" in df.columns else pd.Series(False, index=df.index))
+        baseline = (~is_fc) & (year >= config.CLIMATOLOGY_START_YEAR) & (year <= config.CLIMATOLOGY_END_YEAR)
+        df["value_anom_z"] = climatology.standardized_anomaly(
+            df[primary], doy,
+            df.loc[baseline, primary], doy[baseline],
+            doy_window=window,
+        )
         df["date"] = df["date"].dt.date
         storage.write_parquet(df, parquet)
 

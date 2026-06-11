@@ -115,17 +115,17 @@ All point estimates here come from small samples (the longest series, CHIRPS-onl
 
 | Year | Label | Worst dep | SPI-3 min | RZSM min (σ) | ETa min (σ) | Deps fired | Fired? |
 |---|---|---|---:|---:|---:|:---:|:---:|
-| 2015 | severe | Sud Est | -2.81 | -1.82 | — | 6/6 | ✓ |
-| 2016 | negative | Sud Est | -1.51 | -0.86 | — | 0/6 | — |
-| 2017 | negative | Grande Anse | 0.59 | -0.30 | — | 0/6 | — |
-| 2018 | moderate | Sud Est | -2.12 | -0.79 | — | 0/6 | — |
-| 2019 | negative | Sud Est | -1.66 | -0.83 | — | 0/6 | — |
-| 2020 | negative | Centre | -2.42 | -1.50 | — | 6/6 | ✓ |
-| 2021 | negative | Nord Ouest | -1.35 | -0.71 | — | 0/6 | — |
-| 2022 | negative | Nord Ouest | -1.25 | -1.18 | — | 0/6 | — |
-| 2023 | moderate | Sud Est | -0.59 | -1.79 | — | 0/6 | — |
-| 2024 | negative | Centre | 0.63 | -0.79 | — | 0/6 | — |
-| 2025 | negative | Nord Ouest | -1.88 | -1.31 | — | 1/6 | ✓ |
+| 2015 | severe | Sud Est | -2.81 | -2.93 | — | 6/6 | ✓ |
+| 2016 | negative | Sud Est | -1.51 | -0.76 | — | 0/6 | — |
+| 2017 | negative | Grande Anse | 0.59 | -0.15 | — | 0/6 | — |
+| 2018 | moderate | Sud Est | -2.12 | -0.68 | — | 0/6 | — |
+| 2019 | negative | Sud Est | -1.66 | -0.68 | — | 0/6 | — |
+| 2020 | negative | Centre | -2.42 | -1.96 | — | 4/6 | ✓ |
+| 2021 | negative | Nord Ouest | -1.35 | -0.65 | — | 0/6 | — |
+| 2022 | negative | Nord Ouest | -1.25 | -1.36 | — | 0/6 | — |
+| 2023 | moderate | Sud Est | -0.59 | -2.93 | — | 0/6 | — |
+| 2024 | negative | Centre | 0.63 | -0.62 | — | 0/6 | — |
+| 2025 | negative | Nord Ouest | -1.88 | -1.36 | — | 1/6 | ✓ |
 
 ## Operational recommendations
 
