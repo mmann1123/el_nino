@@ -115,17 +115,17 @@ All point estimates here come from small samples (the longest series, CHIRPS-onl
 
 | Year | Label | Worst dep | SPI-3 min | RZSM min (σ) | ETa min (σ) | Deps fired | Fired? |
 |---|---|---|---:|---:|---:|:---:|:---:|
-| 2015 | severe | San Miguel | -2.99 | -1.85 | — | 4/4 | ✓ |
-| 2016 | negative | San Miguel | -1.25 | -0.95 | — | 0/4 | — |
-| 2017 | negative | San Miguel | -1.05 | -0.09 | — | 0/4 | — |
-| 2018 | moderate | San Miguel | -1.68 | -1.54 | — | 3/4 | ✓ |
-| 2019 | negative | Morazan | -1.35 | -1.27 | — | 0/4 | — |
-| 2020 | negative | San Miguel | 1.18 | -0.38 | — | 0/4 | — |
-| 2021 | negative | San Miguel | -1.17 | -0.49 | — | 0/4 | — |
-| 2022 | negative | San Miguel | -0.97 | -0.08 | — | 0/4 | — |
+| 2015 | severe | San Miguel | -2.99 | -2.94 | — | 4/4 | ✓ |
+| 2016 | negative | San Miguel | -1.25 | -0.89 | — | 0/4 | — |
+| 2017 | negative | San Miguel | -1.05 | -0.10 | — | 0/4 | — |
+| 2018 | moderate | San Miguel | -1.68 | -1.75 | — | 3/4 | ✓ |
+| 2019 | negative | Morazan | -1.35 | -1.53 | — | 0/4 | — |
+| 2020 | negative | San Miguel | 1.18 | -0.34 | — | 0/4 | — |
+| 2021 | negative | San Miguel | -1.17 | -0.47 | — | 0/4 | — |
+| 2022 | negative | San Miguel | -0.97 | -0.07 | — | 0/4 | — |
 | 2023 | moderate | San Miguel | -1.18 | -0.84 | — | 0/4 | — |
-| 2024 | negative | San Miguel | 0.97 | 1.61 | — | 0/4 | — |
-| 2025 | negative | La Union | 0.07 | -0.71 | — | 0/4 | — |
+| 2024 | negative | San Miguel | 0.97 | 1.34 | — | 0/4 | — |
+| 2025 | negative | La Union | 0.07 | -0.70 | — | 0/4 | — |
 
 ## Operational recommendations
 

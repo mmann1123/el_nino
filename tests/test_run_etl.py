@@ -14,41 +14,42 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
-from el_nino.etl import climatology, refresh_check, run_etl, storage, synth
+from el_nino.etl import refresh_check, run_etl, storage, synth
 from el_nino.etl.indicators import INDICATORS
 from el_nino.etl.indicators import chirps as chirps_mod
 
 DEP = "Morazan"
 
 
-def _smap_climatology():
-    climatology.save("smap", pd.DataFrame({
-        "departamento": [DEP] * 3,
-        "value_column": ["rzsm_m3m3"] * 3,
-        "doy": [1, 2, 3],
-        "mu": [0.30] * 3,
-        "sigma": [0.10] * 3,
-    }))
+def _seed_smap_baseline():
+    """25 baseline-year DOY-1 observations (median 0.30) so the nonparametric
+    index has a pool to rank a freshly-fetched row against."""
+    rows = [{"date": date(2000 + i, 1, 1), "departamento": DEP,
+             "rzsm_m3m3": v, "is_forecast": False}
+            for i, v in enumerate(np.round(np.linspace(0.10, 0.50, 25), 4))]
+    storage.write_parquet(pd.DataFrame(rows), storage.raw_path("smap", DEP))
 
 
 class TestCmdFetchAttachesZ:
-    """Full cron-fetch path with a stubbed GEE pull: the written rows must come
-    out with value_anom_z computed from the climatology."""
+    """Full cron-fetch path with a stubbed GEE pull: the fetched row must come
+    out with value_anom_z computed (nonparametrically) against the baseline."""
 
     def test_new_rows_get_z(self, tmp_storage, monkeypatch):
-        _smap_climatology()
+        _seed_smap_baseline()
         fake = pd.DataFrame({
-            "date": [date(2020, 1, 1), date(2020, 1, 2), date(2020, 1, 3)],
-            "departamento": [DEP] * 3,
-            "rzsm_m3m3": [0.30, 0.40, 0.20],   # -> z = 0, +1, -1
-            "is_forecast": [False] * 3,
+            "date": [date(2026, 1, 1)],
+            "departamento": [DEP],
+            "rzsm_m3m3": [0.30],   # median of the baseline -> z ~ 0
+            "is_forecast": [False],
         })
         monkeypatch.setattr(INDICATORS["smap"], "fetch", lambda self, s, e: fake)
         run_etl.cmd_fetch(SimpleNamespace(
-            indicator="smap", start=date(2020, 1, 1), end=date(2020, 1, 3)))
-        out = storage.read_parquet(storage.raw_path("smap", DEP)).sort_values("date")
-        assert "value_anom_z" in out.columns
-        assert np.allclose(out["value_anom_z"].to_numpy(), [0.0, 1.0, -1.0])
+            indicator="smap", start=date(2026, 1, 1), end=date(2026, 1, 1)))
+        out = storage.read_parquet(storage.raw_path("smap", DEP))
+        out["date"] = pd.to_datetime(out["date"])
+        cur = out.sort_values("date").iloc[-1]
+        assert not np.isnan(cur["value_anom_z"])
+        assert abs(cur["value_anom_z"]) < 0.2   # median fetched value -> ~0
 
     def test_empty_fetch_skips_without_error(self, tmp_storage, monkeypatch):
         monkeypatch.setattr(INDICATORS["smap"], "fetch", lambda self, s, e: pd.DataFrame())

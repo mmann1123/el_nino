@@ -22,25 +22,57 @@ class TestCircularDoyWindow:
         assert climatology._circular_doy_window(365, 1) == [364, 365, 1]
 
 
-class TestComputeAnomalyZ:
-    def test_standardizes_against_climatology(self):
-        clim = pd.DataFrame({"doy": [1, 2], "mu": [10.0, 20.0], "sigma": [2.0, 5.0]})
-        values = pd.Series([12.0, 10.0])
-        doys = pd.Series([1, 2])
-        z = climatology.compute_anomaly_z(values, doys, clim)
-        # (12-10)/2 = 1.0 ; (10-20)/5 = -2.0
-        assert z.tolist() == [1.0, -2.0]
+class TestStandardizedAnomaly:
+    """Nonparametric standardized index: empirical Gringorten plotting position
+    over the DOY-pooled baseline, then inverse normal. Distribution-free, on a
+    standard-normal scale."""
 
-    def test_zero_sigma_yields_nan(self):
-        clim = pd.DataFrame({"doy": [1], "mu": [10.0], "sigma": [0.0]})
-        z = climatology.compute_anomaly_z(pd.Series([12.0]), pd.Series([1]), clim)
+    def _baseline(self, vals, doy=1):
+        s = pd.Series(vals, dtype=float)
+        return s, pd.Series([doy] * len(vals))
+
+    def test_median_maps_near_zero(self):
+        bvals, bdoys = self._baseline(list(range(100)))
+        z = climatology.standardized_anomaly(
+            pd.Series([49.5]), pd.Series([1]), bvals, bdoys, doy_window=0)
+        assert abs(z.iloc[0]) < 0.05
+
+    def test_monotonic_increasing_in_value(self):
+        bvals, bdoys = self._baseline(list(range(100)))
+        z = climatology.standardized_anomaly(
+            pd.Series([10.0, 50.0, 90.0]), pd.Series([1, 1, 1]), bvals, bdoys, doy_window=0)
+        assert z.iloc[0] < z.iloc[1] < z.iloc[2]
+        assert z.iloc[0] < 0 < z.iloc[2]
+
+    def test_robust_to_skew(self):
+        # Heavy right tail pulls the *mean* up, but the median still maps to ~0 —
+        # the whole point of going nonparametric vs (x-mean)/sd.
+        bvals, bdoys = self._baseline(list(range(90)) + [1000.0] * 10)
+        z = climatology.standardized_anomaly(
+            pd.Series([49.5]), pd.Series([1]), bvals, bdoys, doy_window=0)
+        assert abs(z.iloc[0]) < 0.1
+
+    def test_small_pool_is_nan(self):
+        bvals, bdoys = self._baseline([1.0, 2.0, 3.0])  # < ANOMALY_MIN_SAMPLES
+        z = climatology.standardized_anomaly(
+            pd.Series([2.0]), pd.Series([1]), bvals, bdoys, doy_window=0)
         assert np.isnan(z.iloc[0])
 
-    def test_empty_climatology_is_all_nan(self):
-        z = climatology.compute_anomaly_z(pd.Series([1.0, 2.0]), pd.Series([1, 2]),
-                                          pd.DataFrame())
-        assert z.isna().all()
-        assert len(z) == 2
+    def test_empty_baseline_is_all_nan(self):
+        z = climatology.standardized_anomaly(
+            pd.Series([1.0, 2.0]), pd.Series([1, 2]),
+            pd.Series([], dtype=float), pd.Series([], dtype=float), doy_window=0)
+        assert z.isna().all() and len(z) == 2
+
+    def test_doy_window_pools_neighbours(self):
+        # 30 values across doys 1-3; with window=1 the pool for doy 2 is all of
+        # them, so a mid value scores near 0.
+        vals = list(range(30))
+        doys = [1] * 10 + [2] * 10 + [3] * 10
+        z = climatology.standardized_anomaly(
+            pd.Series([14.5]), pd.Series([2]),
+            pd.Series(vals, dtype=float), pd.Series(doys), doy_window=1)
+        assert abs(z.iloc[0]) < 0.1
 
 
 class TestWindowedDoyStats:

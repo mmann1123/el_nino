@@ -40,23 +40,26 @@ class TestOniClimatology:
         assert (clim["p50"] <= clim["p75"]).all()
         assert (clim["p75"] <= clim["p95"]).all()
 
-    def test_bands_are_mean_plus_minus_sd(self):
-        # p50 is the mean; inner band is ±1 SD, outer is ±2 SD — so both bands
-        # are symmetric about the centre line.
-        clim = charts._oni_climatology(_oni())
-        assert np.allclose((clim["p25"] + clim["p75"]) / 2, clim["p50"])
-        assert np.allclose((clim["p05"] + clim["p95"]) / 2, clim["p50"])
-        # Outer half-width is exactly twice the inner half-width (2 SD vs 1 SD).
-        inner = clim["p75"] - clim["p50"]
-        outer = clim["p95"] - clim["p50"]
-        assert np.allclose(outer, 2 * inner)
+    def test_bands_are_empirical_percentiles(self):
+        # Distribution-free: p50 is the empirical median of the month's ONI, and
+        # the bands are real quantiles (no normality / symmetry assumed). Check
+        # the centre line against the per-month median at a mid-month doy.
+        oni = _oni()
+        clim = charts._oni_climatology(oni)
+        d = oni.copy()
+        d["date"] = pd.to_datetime(d["date"])
+        july_median = d[d["date"].dt.month == 7]["oni"].median()
+        july_15_doy = pd.Timestamp(2001, 7, 15).dayofyear
+        p50_at_july15 = clim.loc[clim["doy"] == july_15_doy, "p50"].iloc[0]
+        assert abs(p50_at_july15 - july_median) < 1e-9
 
     def test_no_nans(self):
         clim = charts._oni_climatology(_oni())
         assert not clim.isna().any().any()
 
-    def test_single_year_zero_sd_collapses_bands(self):
-        # One sample per month -> std NaN -> filled 0 -> all fences equal the mean.
+    def test_single_year_collapses_bands(self):
+        # One sample per month -> every quantile equals that single value, so the
+        # bands collapse onto the centre line.
         clim = charts._oni_climatology(_oni(years=[2005]))
         assert len(clim) == 365
         assert np.allclose(clim["p05"], clim["p50"])
