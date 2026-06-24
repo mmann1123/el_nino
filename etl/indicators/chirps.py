@@ -207,8 +207,17 @@ def recompute_spi_for_all_parquets() -> None:
         storage.write_parquet(with_spi, parquet)
 
 
-def aggregate_to_pentad(daily: pd.DataFrame) -> pd.DataFrame:
-    """Sum daily precip into pentads (5-day blocks of the calendar year)."""
+def aggregate_to_pentad(daily: pd.DataFrame, require_complete: bool = True) -> pd.DataFrame:
+    """Sum daily precip into pentads (5-day blocks of the calendar year).
+
+    A pentad's total is the SUM of its daily values, so a pentad missing days
+    under-reports. With ``require_complete`` (default), only pentads that have
+    their full day-span present are returned — incomplete ones (e.g. the
+    in-progress trailing pentad, or a latency gap) are dropped rather than fed
+    downstream as artificially-low sums that would bias SPI toward false drought.
+    The CHIRPS-Prelim fetch re-pulls a trailing overlap each run, so a dropped
+    partial pentad is re-emitted once its remaining days publish.
+    """
     if daily.empty:
         return daily
     d = daily.copy()
@@ -219,9 +228,26 @@ def aggregate_to_pentad(daily: pd.DataFrame) -> pd.DataFrame:
     d.loc[d["pentad"] > 73, "pentad"] = 73  # collapse leap-year remainder
     g = d.groupby(["departamento", "year", "pentad"], as_index=False).agg(
         precip_pentad_mm=("precip_mm", "sum"),
+        n_days=("precip_mm", "size"),
     )
+    if require_complete:
+        expected = g.apply(lambda r: _pentad_expected_days(int(r["pentad"]), int(r["year"])), axis=1)
+        g = g[g["n_days"] >= expected].reset_index(drop=True)
+        if g.empty:
+            return g[["date", "departamento", "year", "pentad", "precip_pentad_mm"]] \
+                if "date" in g.columns else pd.DataFrame(
+                    columns=["date", "departamento", "year", "pentad", "precip_pentad_mm"])
     g["date"] = g.apply(_pentad_end_date, axis=1)
     return g[["date", "departamento", "year", "pentad", "precip_pentad_mm"]]
+
+
+def _pentad_expected_days(pentad: int, year: int) -> int:
+    """Number of calendar days a complete pentad spans. 5 for pentads 1-72;
+    pentad 73 absorbs the year-end remainder (5 in a common year, 6 in a leap
+    year)."""
+    if pentad >= 73:
+        return (366 if _is_leap(year) else 365) - 361 + 1
+    return 5
 
 
 def _pentad_end_date(row) -> date:

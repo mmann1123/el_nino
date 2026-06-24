@@ -187,7 +187,12 @@ def run(verbose_logger=print, start: date | None = None, end: date | None = None
         verbose_logger("⚠️  prelim: no local CHIRPS observations — run a full backfill first")
         return 0
 
-    s = start or (latest + timedelta(days=1))
+    # Re-fetch a trailing overlap (not just latest+1): a pentad first written
+    # while UCSB still lacked some of its days would otherwise freeze at that
+    # partial sum forever. Re-summing the last ~4 pentads each run lets a pentad
+    # fill in and overwrite (via upsert) once its remaining days publish.
+    PRELIM_OVERLAP_DAYS = 20
+    s = start or (latest - timedelta(days=PRELIM_OVERLAP_DAYS))
     e = end or (config.today() - timedelta(days=1))
     if s > e:
         verbose_logger(f"✅ prelim: gap already closed (local latest {latest}, requested {s}..{e})")
