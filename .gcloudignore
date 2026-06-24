@@ -1,0 +1,20 @@
+# Controls what `gcloud builds submit .` uploads as the build context.
+# Build from this directory (the el_nino repo); these paths never need to ship.
+# NOTE: do NOT ignore etl/aoi/*.geojson — the image needs the AOI polygons.
+
+.git/
+.gitignore
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+.env
+.env.*
+service-account*.json
+ee-sa-key.json
+.streamlit/secrets.toml
+.vscode/
+.claude/
+notes.md

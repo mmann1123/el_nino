@@ -1,6 +1,10 @@
 # Single image with two entry points (dashboard service and ETL job).
 # Cloud Run Service:  uvicorn/streamlit entry
 # Cloud Run Job:      python -m el_nino.etl.run_etl ...
+#
+# Build context is the el_nino repo itself (run `gcloud builds submit .` from
+# this directory). .dockerignore / .gcloudignore (both at this root) keep data/,
+# .git, .env, etc. out of the upload and the image.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -15,14 +19,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc g++ libgeos-dev libgdal-dev libexpat1 curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY el_nino/requirements.txt /app/el_nino/requirements.txt
+COPY requirements.txt /app/el_nino/requirements.txt
 RUN pip install --no-cache-dir -r /app/el_nino/requirements.txt
 
-COPY el_nino /app/el_nino
+COPY . /app/el_nino
 
 # Streamlit reads .streamlit/config.toml from the launch CWD (/app here), not
 # from the script's folder — so place the theme config at /app/.streamlit/.
-COPY el_nino/.streamlit /app/.streamlit
+COPY .streamlit /app/.streamlit
 
 ENV PYTHONPATH=/app
 ENV STORAGE_ROOT=/mnt/gcs
