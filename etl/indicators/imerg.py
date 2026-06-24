@@ -35,17 +35,13 @@ class IMERG(Indicator):
             .filterDate(start.isoformat(), end.isoformat())
             .select("precipitation")
         )
-        # IMERG is half-hourly; aggregate to daily before reducing.
-        def to_daily(d):
-            d = ee.Date(d)
-            day = coll.filterDate(d, d.advance(1, "day")).sum()
-            return day.set("system:time_start", d.millis())
+        if (end - start).days <= 0:
+            return pd.DataFrame()
 
-        n_days = (end - start).days
-        day_list = ee.List.sequence(0, n_days - 1).map(
-            lambda i: ee.Date(start.isoformat()).advance(i, "day").millis()
-        )
-        daily_coll = ee.ImageCollection(day_list.map(to_daily))
+        # IMERG is half-hourly; sum to daily over days that actually have data
+        # (skip the unpublished latency tail, which would otherwise produce
+        # band-less images that crash the reduce). See Indicator.daily_aggregate.
+        daily_coll = self.daily_aggregate(coll, lambda ic: ic.sum(), "precipitation")
 
         df = self.reduce_imagecollection_by_departamento(daily_coll, band="precipitation")
         if df.empty:

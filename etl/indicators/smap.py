@@ -44,18 +44,13 @@ class SMAP(Indicator):
             .select("sm_rootzone")
         )
 
-        # Aggregate to daily means server-side.
-        n_days = (end - start).days
-        if n_days <= 0:
+        if (end - start).days <= 0:
             return pd.DataFrame()
 
-        def daily_mean(i):
-            d = ee.Date(start.isoformat()).advance(ee.Number(i), "day")
-            day = coll_raw.filterDate(d, d.advance(1, "day")).mean()
-            return day.rename("rzsm_m3m3").set("system:time_start", d.millis())
-
-        day_list = ee.List.sequence(0, n_days - 1).map(daily_mean)
-        daily_coll = ee.ImageCollection(day_list)
+        # Daily means over days that actually have data — skipping the source's
+        # unpublished latency tail, which would otherwise yield band-less images
+        # that crash the reduce. See Indicator.daily_aggregate.
+        daily_coll = self.daily_aggregate(coll_raw, lambda ic: ic.mean(), "rzsm_m3m3")
 
         df = self.reduce_imagecollection_by_departamento(daily_coll, band="rzsm_m3m3")
         if df.empty:

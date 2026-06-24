@@ -198,6 +198,36 @@ class Indicator(ABC):
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
         return df.dropna(subset=["value"]).sort_values(["departamento", "date"]).reset_index(drop=True)
 
+    @staticmethod
+    def daily_aggregate(coll, agg_fn, out_band: str):
+        """Aggregate a sub-daily ImageCollection to one image per day **that has
+        data**, then rename the result to ``out_band``.
+
+        Crucially, it builds aggregates only over days actually present in the
+        source — NOT a fixed calendar sequence. A naive ``ee.List.sequence`` loop
+        creates an image for every day, and an empty day (e.g. the source's
+        unpublished latency tail) yields a band-less ``.mean()``/``.sum()`` image
+        that later crashes ``select(out_band)`` with "Image has no bands",
+        aborting the whole pull. Skipping absent days makes the fetch robust to
+        normal source latency and to gaps anywhere in the window.
+
+        agg_fn: callable taking an ImageCollection and returning an Image
+        (e.g. ``lambda ic: ic.mean()`` or ``lambda ic: ic.sum()``).
+        """
+        import ee
+
+        coll = coll.map(
+            lambda img: img.set("_day", ee.Date(img.get("system:time_start")).format("YYYY-MM-dd"))
+        )
+        days = coll.aggregate_array("_day").distinct()
+
+        def _per_day(day_str):
+            d = ee.Date(ee.String(day_str))
+            agg = agg_fn(coll.filterDate(d, d.advance(1, "day")))
+            return ee.Image(agg).rename(out_band).set("system:time_start", d.millis())
+
+        return ee.ImageCollection(days.map(_per_day))
+
 
 # ---- date-window helpers ----
 
