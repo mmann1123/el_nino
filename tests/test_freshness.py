@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from el_nino.etl import freshness
+import pandas as pd
+
+from el_nino.etl import freshness, synth
 
 
 class TestClassify:
@@ -70,3 +72,46 @@ class TestWriteReadAll:
 
     def test_read_all_missing_file_is_empty(self, tmp_storage):
         assert freshness.read_all() == {}
+
+
+class TestPublishedChirpsFreshness:
+    """End-to-end on the production writer the online dashboard reads.
+
+    `synth.update_freshness` (run by the `finalize` ETL job, run_etl.py) is what
+    writes each bucket's freshness.json. The GFS 15-day forecast tail must never
+    leak into CHIRPS `last_observation_date` — otherwise the published date
+    lands ~2 weeks in the future and the badge is permanently 'fresh', hiding a
+    stalled feed. We assert the on-disk freshness.json, not the helper.
+    """
+
+    TODAY = date(2026, 6, 26)  # 22 days after the real last observation -> stale
+
+    def _write_chirps(self, tmp_storage, rows):
+        d = tmp_storage / "raw" / "chirps"
+        d.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(rows).to_parquet(d / "Testdep.parquet")
+
+    def _published(self, tmp_storage):
+        synth.update_freshness(self.TODAY)
+        return json.loads(tmp_storage.joinpath("freshness.json").read_text())["chirps"]
+
+    def test_forecast_tail_excluded_and_staleness_surfaced(self, tmp_storage):
+        self._write_chirps(tmp_storage, [
+            {"date": date(2026, 6, 4), "departamento": "Testdep", "is_forecast": False},
+            {"date": date(2026, 6, 12), "departamento": "Testdep", "is_forecast": True},
+            {"date": date(2026, 7, 10), "departamento": "Testdep", "is_forecast": True},
+        ])
+        chirps = self._published(tmp_storage)
+        # The published date is the real observation, never the Jul-10 forecast.
+        assert chirps["last_observation_date"] == "2026-06-04"
+        # And with the tail gone, a 22-day-old feed correctly reads as stale
+        # instead of being pinned to 'fresh' by the forecast.
+        assert chirps["status"] == "stale"
+
+    def test_all_forecast_publishes_no_data(self, tmp_storage):
+        self._write_chirps(tmp_storage, [
+            {"date": date(2026, 7, 10), "departamento": "Testdep", "is_forecast": True},
+        ])
+        chirps = self._published(tmp_storage)
+        assert chirps["last_observation_date"] is None
+        assert chirps["status"] == "no_data"
