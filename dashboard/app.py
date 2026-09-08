@@ -153,17 +153,17 @@ def _header_icon_html() -> str:
     return '<span style="font-size:1.3em;margin-right:6px;">🏜️</span>'
 
 
-# Header row: title on the left, the ES|EN / FR|EN language toggle pinned to
-# the top-right corner of the sidebar.
-_title_col, _lang_col = st.sidebar.columns([2.6, 1.4], vertical_alignment="center")
-_title_col.markdown(
-    "<h2 style='margin:0;font-size:1.15em;line-height:1.25;"
-    "display:flex;align-items:center;'>"
+# Sidebar header: title, then the ES|EN / FR|EN language toggle on its own
+# row directly beneath it (a side-by-side layout clipped the toggle on
+# narrower sidebars).
+st.sidebar.markdown(
+    "<h2 style='margin:0 0 0.35em 0;font-size:1.25em;line-height:1.25;"
+    "white-space:nowrap;display:flex;align-items:center;'>"
     f"{_header_icon_html()}<span>"
     f"{i18n.t('sidebar_title', code=config.CC['short_code'])}</span></h2>",
     unsafe_allow_html=True,
 )
-i18n.language_toggle(_lang_col)
+i18n.language_toggle(st.sidebar)
 st.sidebar.caption(f"{config.CC['display_name']} {i18n.crop_caption()}")
 
 deps_available = data.list_departamentos()
