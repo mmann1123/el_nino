@@ -109,6 +109,14 @@ time, filtered to the active country.
 - [dashboard/](dashboard/) — Streamlit app (Overview / Indicator Detail / Year
   Compare). `data.py` is the country-filtered parquet read layer; `auth.py` is
   an OIDC gate disabled by default (public deploys).
+- [dashboard/i18n.py](dashboard/i18n.py) — all user-facing dashboard text.
+  `STRINGS[key] = {en, es, fr}`; call `i18n.t(key, **fmt)`. The sidebar toggle
+  switches between English and the country's `default_lang` (`es` for ES,
+  `fr` for HT), stored in `st.session_state["lang"]` and the `?lang=` query
+  param. Outside a Streamlit runtime the language is English, so pure-logic
+  tests keep English assertions. Never hard-code display strings in
+  `dashboard/`; add a key with all three languages (`tests/test_i18n.py`
+  enforces completeness and matching `{placeholders}`).
 
 **Country data co-mingling:** ES and HT can share one local `STORAGE_ROOT`.
 Cross-pollution is prevented at *read* time via `config.country_departments()`

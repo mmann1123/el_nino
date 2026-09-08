@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .. import config
+from . import i18n
 
 REFRESH_INTERVAL = timedelta(hours=12)
 LOCK_FILE: Path = config.STORAGE_ROOT / "last_refresh.json"
@@ -77,4 +78,4 @@ def format_relative(ts: datetime, now: datetime | None = None) -> str:
         h = seconds // 3600
         m = (seconds % 3600) // 60
         unit = f"{h}h {m}m" if m else f"{h}h"
-    return f"in {unit}" if future else f"{unit} ago"
+    return i18n.t("rel_in", unit=unit) if future else i18n.t("rel_ago", unit=unit)

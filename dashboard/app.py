@@ -31,75 +31,72 @@ from el_nino.dashboard import (
     data,
     drought_status,
     freshness,
+    i18n,
     map as map_view,
     refresh_lock,
     site_footer,
     status as status_view,
 )  # noqa: E402
 
+# Resolve the session language before the first translated string.
+i18n.init()
+
 st.set_page_config(
-    page_title=f"{config.CC['display_name']} Drought Monitor",
+    page_title=i18n.t("page_title", name=config.CC["display_name"]),
     page_icon="🌾",
     layout="wide",
 )
 
 auth.require_login()
 
-INDICATOR_LABELS = {
-    "chirps": "Rainfall (SPI-3)",
-    "smap": "Soil moisture (root-zone)",
-    "wapor": "Evapotranspiration (WAPOR ETa)",
-    "imerg": "Daily rainfall (event scale)",
+# Indicator labels / help / baselines / axis titles are translated at lookup
+# time (dashboard/i18n.py) so they follow the sidebar language toggle.
+
+
+class _Translated:
+    """Mapping-like view that resolves ``prefix + key + suffix`` through i18n
+    at access time (so the labels follow the active language)."""
+
+    def __init__(self, prefix: str, keys, suffix: str = ""):
+        self._keys = set(keys)
+        self._prefix, self._suffix = prefix, suffix
+
+    def __getitem__(self, k: str) -> str:
+        if k not in self._keys:
+            raise KeyError(k)
+        return i18n.t(f"{self._prefix}{k}{self._suffix}")
+
+    def get(self, k: str, default=None):
+        return self[k] if k in self._keys else default
+
+
+INDICATOR_LABELS = _Translated("ind_", INDICATORS)
+INDICATOR_HELP = _Translated("ind_", INDICATORS, "_help")
+
+
+# Per-indicator baseline start year — different products start at different years.
+INDICATOR_BASELINE_START = {
+    "chirps": 1981,
+    "smap": 2015,
+    "wapor": 2018,
+    "imerg": 2000,
 }
 
-INDICATOR_HELP = {
-    "chirps": (
-        "**SPI-3** (Standardized Precipitation Index, 3-month) — how unusual the "
-        "last 3 months of rainfall have been compared to 1981–present at this "
-        "location and time of year. **0 = typical**, **−1 = moderate drought**, "
-        "**−1.5 = severe drought**. Source: CHIRPS v3. "
-        "**15-day forecast** is from NOAA GFS 0.25° (raw, not bias-corrected to "
-        "CHIRPS — GFS tends to over-predict in the tropics)."
-    ),
-    "smap": (
-        "**Root-zone soil moisture (0–100 cm)** — water available to maize roots. "
-        "Even when surface looks moist, what kills yield at silking is depletion "
-        "of the deeper store, which this captures. Source: NASA SMAP L4."
-    ),
-    "wapor": (
-        "**Actual evapotranspiration (ETa)** — water actually leaving the soil "
-        "and crop canopy. Low ETa during the growing season confirms crop stress. "
-        "Lags rainfall/soil moisture by ~10 days. Source: FAO WAPOR v3."
-    ),
-    "imerg": (
-        "**Daily rainfall** at finer temporal/spatial resolution than CHIRPS. "
-        "Use for verifying individual rain events. Source: NASA IMERG-Late V07."
-    ),
-}
 
-# Per-indicator baseline window — different products start at different years.
-INDICATOR_BASELINE = {
-    "chirps": "1981–present",
-    "smap": "2015–present",
-    "wapor": "2018–present",
-    "imerg": "2000–present",
-}
+def baseline_for(indicator: str) -> str:
+    return i18n.t("baseline_fmt", start=INDICATOR_BASELINE_START[indicator])
+
 
 # Human-readable y-axis labels — used everywhere the primary_column would
 # otherwise be shown verbatim ("spi_3", "eta_mm", "rzsm_m3m3", ...).
-YAXIS_LABELS = {
-    "spi_3": "SPI-3 (standardized rainfall, last 3 months)",
-    "spi_1": "SPI-1 (standardized rainfall, last month)",
-    "spi_6": "SPI-6 (standardized rainfall, last 6 months)",
-    "precip_pentad_mm": "Rainfall (mm per 5-day pentad)",
-    "rzsm_m3m3": "Root-zone soil moisture (m³/m³)",
-    "eta_mm": "Evapotranspiration (mm per dekad)",
-    "imerg_precip_mm": "Rainfall (mm per day)",
-}
+YAXIS_COLUMNS = (
+    "spi_3", "spi_1", "spi_6", "precip_pentad_mm",
+    "rzsm_m3m3", "eta_mm", "imerg_precip_mm",
+)
 
 
 def yaxis_label_for(col: str) -> str:
-    return YAXIS_LABELS.get(col, col)
+    return i18n.t(f"yaxis_{col}") if col in YAXIS_COLUMNS else col
 
 
 # Canonical notable analog years are defined in el_nino/etl/enso.py — kept
@@ -156,22 +153,23 @@ def _header_icon_html() -> str:
     return '<span style="font-size:1.3em;margin-right:6px;">🏜️</span>'
 
 
-st.sidebar.markdown(
-    "<h2 style='margin-top:0;margin-bottom:0.6em;white-space:nowrap;"
-    "font-size:1.25em;display:flex;align-items:center;'>"
-    f"{_header_icon_html()}{config.CC['short_code']} Drought Monitor</h2>",
+# Header row: title on the left, the ES|EN / FR|EN language toggle pinned to
+# the top-right corner of the sidebar.
+_title_col, _lang_col = st.sidebar.columns([2.6, 1.4], vertical_alignment="center")
+_title_col.markdown(
+    "<h2 style='margin:0;font-size:1.15em;line-height:1.25;"
+    "display:flex;align-items:center;'>"
+    f"{_header_icon_html()}<span>"
+    f"{i18n.t('sidebar_title', code=config.CC['short_code'])}</span></h2>",
     unsafe_allow_html=True,
 )
-st.sidebar.caption(f"{config.CC['display_name']} {config.CC['crop_focus_caption']}")
+i18n.language_toggle(_lang_col)
+st.sidebar.caption(f"{config.CC['display_name']} {i18n.crop_caption()}")
 
 deps_available = data.list_departamentos()
 if not deps_available:
-    st.sidebar.warning(
-        "No data found. Run the ETL first:\n\n`python -m el_nino.etl.run_etl synth`"
-    )
-    st.warning(
-        "No indicator data available yet. The ETL needs to populate `data/raw/`. See sidebar."
-    )
+    st.sidebar.warning(i18n.t("no_data_sidebar"))
+    st.warning(i18n.t("no_data_main"))
     st.stop()
 
 default_dep = data.ALL if data.ALL in deps_available else deps_available[0]
@@ -191,31 +189,36 @@ departamento = st.sidebar.selectbox(
     config.CC["dept_term"].capitalize(),
     deps_available,
     index=default_idx,
+    format_func=lambda d: i18n.dep_display(d, data.ALL),
     on_change=_on_dep_dropdown_changed,
-    help=(
-        f"Pick a {config.CC['display_name']} {config.CC['dept_term']}, "
-        "or 'All (country mean)' for a nationwide average. "
-        f"You can also click any {config.CC['dept_term']} on the map. "
-        f"{config.CC['priority_label']} focus: {config.CC['priority_display_names']}."
+    help=i18n.t(
+        "dep_select_help",
+        country=config.CC["display_name"],
+        dept=config.CC["dept_term"],
+        all=i18n.t("all_country_mean"),
+        priority=i18n.priority_label(),
+        names=config.CC["priority_display_names"],
     ),
 )
+# Display form of the selection (translates the "All (country mean)" sentinel).
+departamento_label = i18n.dep_display(departamento, data.ALL)
 # Persist the dropdown's current value so the index= computation works on
 # next rerun and so map clicks can compare against the active selection.
 st.session_state["dep_choice"] = departamento
 
 indicator_name = st.sidebar.selectbox(
-    "Indicator",
+    i18n.t("indicator"),
     list(INDICATORS),
     format_func=lambda k: INDICATOR_LABELS.get(k, k),
-    help="Pick which indicator to feature in Indicator Detail and Year Compare.",
+    help=i18n.t("indicator_help"),
 )
 indicator_cls = INDICATORS[indicator_name]
 st.sidebar.caption(INDICATOR_HELP.get(indicator_name, ""))
 
 show_forecast = st.sidebar.toggle(
-    "Show 15-day forecast (where available)",
+    i18n.t("forecast_toggle"),
     value=True,
-    help="Append the CHIRPS3-GEFS 15-day rainfall forecast as a dashed segment.",
+    help=i18n.t("forecast_toggle_help"),
 )
 
 # Smart reload: checks the source assets for new data and reports up-to-date status.
@@ -225,43 +228,37 @@ show_forecast = st.sidebar.toggle(
 _refresh_allowed, _refresh_last, _refresh_next = refresh_lock.check_allowed()
 if _refresh_allowed:
     reload_clicked = st.sidebar.button(
-        "🔄 Check for new data",
-        help=(
-            "Queries Earth Engine for the latest data, pulls UCSB CHIRPS-Prelim "
-            "to fill the recent gap, and refreshes the 15-day GFS rainfall "
-            "forecast. Limited to once per 12 hours across all users."
-        ),
+        i18n.t("check_new_data_btn"),
+        help=i18n.t("check_new_data_help"),
     )
     if reload_clicked:
-        with st.sidebar.status("Checking source assets…", expanded=True) as status:
+        with st.sidebar.status(i18n.t("checking_status"), expanded=True) as status:
             try:
                 from el_nino.etl import refresh_check
 
                 results = refresh_check.run(verbose_logger=lambda m: status.write(m))
                 any_changed = any(r["fetched_rows"] > 0 for r in results)
                 if any_changed:
-                    status.update(
-                        label="Found new data — fetched and merged.", state="complete"
-                    )
+                    status.update(label=i18n.t("found_new_data"), state="complete")
                 else:
-                    status.update(label="Already up to date.", state="complete")
+                    status.update(label=i18n.t("already_up_to_date"), state="complete")
                 refresh_lock.record_refresh()
                 st.cache_data.clear()
             except Exception as e:
-                status.update(label=f"Failed: {e}", state="error")
+                status.update(label=i18n.t("refresh_failed", err=e), state="error")
         st.rerun()
 else:
     st.sidebar.button(
-        "🔄 Check for new data",
+        i18n.t("check_new_data_btn"),
         disabled=True,
-        help=(
-            f"Already refreshed "
-            f"{refresh_lock.format_relative(_refresh_last)}. "
-            f"Next refresh available {refresh_lock.format_relative(_refresh_next)}."
+        help=i18n.t(
+            "check_new_data_disabled_help",
+            last=refresh_lock.format_relative(_refresh_last),
+            next=refresh_lock.format_relative(_refresh_next),
         ),
     )
     st.sidebar.caption(
-        f"⏱️ Daily refresh used · next available {refresh_lock.format_relative(_refresh_next)}"
+        i18n.t("refresh_used_caption", next=refresh_lock.format_relative(_refresh_next))
     )
 
 # Refresh timestamps directly under the "Check for new data" button.
@@ -271,21 +268,22 @@ freshness.sidebar_refresh_caption()
 # Rendered at the bottom of the sidebar so it's visible but unobtrusive.
 st.sidebar.markdown(
     "<div style='margin-top:1.5em;font-size:0.7em;color:#90a4ae;line-height:1.3;'>"
-    'Icon: <a href="https://www.flaticon.com/free-icons/drought" '
-    'title="drought icons" style="color:#90a4ae;text-decoration:none;">'
-    "Drought icons created by Nualnoi Kinkaeo — Flaticon</a>"
-    "</div>",
+    + i18n.t(
+        "icon_attribution",
+        link='<a href="https://www.flaticon.com/free-icons/drought" '
+             'title="drought icons" style="color:#90a4ae;text-decoration:none;">'
+             "Drought icons created by Nualnoi Kinkaeo — Flaticon</a>",
+    )
+    + "</div>",
     unsafe_allow_html=True,
 )
 
-tabs = st.tabs(["Overview", "Indicator Detail", "Year Compare"])
+tabs = st.tabs([i18n.t("tab_overview"), i18n.t("tab_detail"), i18n.t("tab_compare")])
 
 # ============= Tab 1 — Overview =============
 with tabs[0]:
-    st.subheader(f"Overview — {departamento}")
-    st.caption(
-        "Each panel shows the current year against the historical climatology envelope for the past 12 months."
-    )
+    st.subheader(i18n.t("overview_header", dep=departamento_label))
+    st.caption(i18n.t("overview_caption"))
 
     # Country-wide status mini-map. Click events on the polygons re-select the
     # corresponding departamento in the sidebar dropdown.
@@ -296,9 +294,14 @@ with tabs[0]:
         )
         if map_fig is not None:
             st.markdown(
-                f"**Current {INDICATOR_LABELS[indicator_name].split('(')[0].strip()} status — all {config.CC['dept_term_plural']}**  \n"
-                "<span style='font-size:0.85em;color:#546e7a;'>"
-                f"💡 Click any {config.CC['dept_term']} to focus the dashboard on it.</span>",
+                i18n.t(
+                    "map_title",
+                    indicator=INDICATOR_LABELS[indicator_name].split("(")[0].strip(),
+                    depts=config.CC["dept_term_plural"],
+                )
+                + "  \n<span style='font-size:0.85em;color:#546e7a;'>"
+                + i18n.t("map_click_hint", dept=config.CC["dept_term"])
+                + "</span>",
                 unsafe_allow_html=True,
             )
             map_event = st.plotly_chart(
@@ -316,9 +319,9 @@ with tabs[0]:
             btn_col, _ = st.columns([2, 5])
             with btn_col:
                 if st.button(
-                    "🌐 Select All",
+                    i18n.t("select_all_btn"),
                     key="select_all_btn",
-                    help=f"Switch to the country-mean view across all {config.CC['dept_term_plural']}.",
+                    help=i18n.t("select_all_help", depts=config.CC["dept_term_plural"]),
                     width="stretch",
                 ):
                     if st.session_state.get("dep_choice") != data.ALL:
@@ -344,11 +347,9 @@ with tabs[0]:
                 st.session_state["dep_choice"] = clicked_dep
                 st.rerun()
         else:
-            st.info(
-                "Map unavailable — run `python -m el_nino.etl.aoi.fetch_aoi` to fetch the AOI polygons."
-            )
+            st.info(i18n.t("map_unavailable"))
     with legend_col:
-        st.markdown("**Legend**")
+        st.markdown(i18n.t("legend"))
         for cat in [
             drought_status.W3,
             drought_status.W2,
@@ -376,17 +377,17 @@ with tabs[0]:
     # department map as country-wide context.
     oni_df = data.load_enso()
     if not oni_df.empty:
-        st.subheader("El Niño / La Niña tracker & Comparison")
+        st.subheader(i18n.t("enso_header"))
         available_enso_years = sorted(oni_df["year"].dropna().unique().tolist())
         el_nino_yrs = [y for y in NOTABLE_EL_NINO_YEARS if y in available_enso_years]
         la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_enso_years]
 
         eb1, eb2, eb3 = st.columns(3)
-        if eb1.button("📊 Notable El Niño years", key="enso_eln_btn"):
+        if eb1.button(i18n.t("enso_btn_elnino"), key="enso_eln_btn"):
             st.session_state["enso_selected_years"] = el_nino_yrs
-        if eb2.button("❄️ Notable La Niña years", key="enso_lan_btn"):
+        if eb2.button(i18n.t("enso_btn_lanina"), key="enso_lan_btn"):
             st.session_state["enso_selected_years"] = la_nina_yrs
-        if eb3.button("Clear", key="enso_clear_btn"):
+        if eb3.button(i18n.t("clear"), key="enso_clear_btn"):
             st.session_state["enso_selected_years"] = []
 
         # Default to no analog overlay — just the current year, envelope, and the
@@ -402,7 +403,7 @@ with tabs[0]:
             if y in available_enso_years
         ]
         selected_enso = st.multiselect(
-            "Years to overlay on the current year",
+            i18n.t("years_overlay_label"),
             options=available_enso_years,
             key="enso_selected_years",
         )
@@ -422,19 +423,20 @@ with tabs[0]:
         )
         st.plotly_chart(enso_fig, width="stretch", config=CHART_CFG)
         latest_oni = oni_df.sort_values("date").iloc[-1]
-        cap = (
-            f"Latest ONI: **{latest_oni['oni']:+.2f} °C** ({latest_oni['phase']}, "
-            f"{pd.Timestamp(latest_oni['date']):%b %Y})."
+        cap = i18n.t(
+            "enso_caption_latest",
+            oni=f"{latest_oni['oni']:+.2f}",
+            phase=i18n.phase_label(latest_oni["phase"]),
+            date=i18n.fmt_mon_year(latest_oni["date"]),
         )
         if latest34:
-            cap += (
-                f" Freshest weekly Niño 3.4: **{latest34['nino34_ssta']:+.2f} °C** "
-                f"({latest34['phase']}, week of {pd.Timestamp(latest34['date']):%d %b %Y})."
+            cap += i18n.t(
+                "enso_caption_weekly",
+                val=f"{latest34['nino34_ssta']:+.2f}",
+                phase=i18n.phase_label(latest34["phase"]),
+                date=i18n.fmt_day_mon_year(latest34["date"]),
             )
-        cap += (
-            " ONI is NOAA's 3-month Niño 3.4 SST anomaly; ±0.5 °C marks El Niño / "
-            "La Niña. The weekly point (★) leads ONI by ~1 month."
-        )
+        cap += i18n.t("enso_caption_note")
         st.caption(cap)
         st.divider()
 
@@ -446,7 +448,7 @@ with tabs[0]:
             st.markdown(f"**{INDICATOR_LABELS[ind_name]}**")
             ind_df = data.load_indicator(ind_name, departamento)
             if ind_df.empty:
-                st.info("No data.")
+                st.info(i18n.t("no_data"))
                 continue
             primary = ind_cls.primary_column
             clim = data.load_climatology(ind_name, departamento, primary)
@@ -491,11 +493,13 @@ with tabs[0]:
 # ============= Tab 2 — Indicator Detail =============
 with tabs[1]:
     primary = indicator_cls.primary_column
-    st.subheader(f"{INDICATOR_LABELS[indicator_name]} — {departamento}")
+    st.subheader(
+        i18n.t("detail_header", indicator=INDICATOR_LABELS[indicator_name], dep=departamento_label)
+    )
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
-        st.info(f"No data for this indicator/{config.CC['dept_term']} combination.")
+        st.info(i18n.t("detail_no_data", dept=config.CC["dept_term"]))
     else:
         clim = data.load_climatology(indicator_name, departamento, primary)
         window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)
@@ -527,7 +531,7 @@ with tabs[1]:
             today_,
         )
         cat = drought_status.classify(latest_z)
-        st.markdown("### Current status")
+        st.markdown(f"### {i18n.t('current_status')}")
         c1, c2 = st.columns([1, 2])
         with c1:
             st.markdown(
@@ -544,15 +548,22 @@ with tabs[1]:
             st.write(drought_status.plain_language(latest_z))
             st.caption(cat.description)
 
-        with st.expander("Show technical details"):
+        with st.expander(i18n.t("tech_details")):
             st.write(
-                f"Latest anomaly z-score: {latest_z:.2f}"
-                if latest_z is not None and not pd.isna(latest_z)
-                else "Latest anomaly z-score: —"
+                i18n.t(
+                    "tech_z",
+                    z=f"{latest_z:.2f}"
+                    if latest_z is not None and not pd.isna(latest_z)
+                    else "—",
+                )
             )
-            st.write(f"Primary column: `{primary}`")
+            st.write(i18n.t("tech_primary_col", col=primary))
             st.write(
-                f"Baseline period for {INDICATOR_LABELS[indicator_name]}: {INDICATOR_BASELINE[indicator_name]} (per-DOY percentiles)"
+                i18n.t(
+                    "tech_baseline",
+                    indicator=INDICATOR_LABELS[indicator_name],
+                    baseline=baseline_for(indicator_name),
+                )
             )
 
         # Climatology-smoothing caption + diagnostic mini-chart
@@ -560,30 +571,30 @@ with tabs[1]:
         n_samples_str = ""
         if "n_samples" in clim.columns:
             med_n = int(clim["n_samples"].median())
-            n_samples_str = f", median {med_n} samples per percentile fence"
+            n_samples_str = i18n.t("clim_n_samples", n=med_n)
         if window > 0:
             st.caption(
-                f"_Baseline: {INDICATOR_BASELINE[indicator_name]}. "
-                f"Percentile fences smoothed over ±{window}-day window{n_samples_str} — "
-                f"pools nearby days-of-year together so short records (esp. WAPOR's ~8 years) "
-                f"produce stable envelopes._"
+                i18n.t(
+                    "clim_caption_smoothed",
+                    baseline=baseline_for(indicator_name),
+                    window=window,
+                    n_samples=n_samples_str,
+                )
             )
         else:
-            st.caption(
-                f"_Baseline: {INDICATOR_BASELINE[indicator_name]} (per-DOY only, no smoothing)._"
-            )
+            st.caption(i18n.t("clim_caption_plain", baseline=baseline_for(indicator_name)))
 
 
 # ============= Tab 3 — Year Compare =============
 with tabs[2]:
     primary = indicator_cls.primary_column
     st.subheader(
-        f"Compare years — {INDICATOR_LABELS[indicator_name]} in {departamento}"
+        i18n.t("compare_header", indicator=INDICATOR_LABELS[indicator_name], dep=departamento_label)
     )
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
-        st.info("No data.")
+        st.info(i18n.t("no_data"))
     else:
         clim = data.load_climatology(indicator_name, departamento, primary)
         available_years = sorted(ind_df["year"].dropna().unique().tolist())
@@ -594,19 +605,13 @@ with tabs[2]:
         la_nina_yrs = [y for y in NOTABLE_LA_NINA_YEARS if y in available_years]
 
         c1, c2, c3 = st.columns(3)
-        if c1.button("📊 Notable El Niño years"):
+        if c1.button(i18n.t("enso_btn_elnino")):
             st.session_state["selected_years"] = el_nino_yrs
-        if c2.button("❄️ Notable La Niña years"):
+        if c2.button(i18n.t("enso_btn_lanina")):
             st.session_state["selected_years"] = la_nina_yrs
-        if c3.button("Clear"):
+        if c3.button(i18n.t("clear")):
             st.session_state["selected_years"] = []
-        st.caption(
-            "El Niño analogs (1982-83, 1997-98, 2015-16, 2023-24 — the strong / "
-            "very-strong events) and La Niña analogs (1988-89, 1998-2001, 2007-08, "
-            "2010-12, 2020-23) per NOAA ONI. "
-            "Years outside an indicator's record (SMAP from 2015, WAPOR from 2018) "
-            "are silently dropped."
-        )
+        st.caption(i18n.t("compare_caption"))
 
         # Filter the session-state selection against the currently-available
         # years — when the user switches indicators (e.g., CHIRPS → WAPOR)
@@ -621,7 +626,7 @@ with tabs[2]:
         if default_years != raw_default:
             st.session_state["selected_years"] = default_years
         selected = st.multiselect(
-            "Years to overlay on the current year",
+            i18n.t("years_overlay_label"),
             options=available_years,
             default=default_years,
             key="selected_years",
@@ -654,26 +659,20 @@ with tabs[2]:
         st.plotly_chart(fig, width="stretch", config=CHART_CFG)
 
 # ---------- About this data ----------
-with st.expander("About this data"):
-    st.markdown(f"""
-    **Indicators** (refresh cadence in parentheses):
-    - **CHIRPS v3** rainfall + SPI-1/3/6 ({INDICATORS['chirps'].freshness.expected_cadence_days} days)
-    - **NOAA GFS0P25** 15-day rainfall forecast (daily refresh, uncalibrated — GFS over-predicts in the tropics)
-    - **SMAP L4** root-zone soil moisture ({INDICATORS['smap'].freshness.expected_cadence_days} days)
-    - **FAO WAPOR v3** L1 AETI (dekadal, ~300 m) ({INDICATORS['wapor'].freshness.expected_cadence_days} days)
-    - **IMERG-Late V07** daily rainfall ({INDICATORS['imerg'].freshness.expected_cadence_days} day)
-
-    **Climatology baseline:** {config.CLIMATOLOGY_START_YEAR}–{config.CLIMATOLOGY_END_YEAR}.
-
-    **Drought classification:** U.S. Drought Monitor SPI bins
-    (D0 ≤ −1.0, D1 ≤ −1.3, D2 ≤ −1.6, D3 ≤ −2.0, D4 ≤ −2.5).
-
-    **Alert thresholds** are country-specific and calibrated against historical
-    El Niño drought events for {config.CC['display_name']} — see the
-    "How confident is this alert?" expander under the Drought alert section.
-    Re-run `COUNTRY={config.COUNTRY} python -m el_nino.experiments.trigger_calibration`
-    after each annual data refresh to update the calibration.
-    """)
+with st.expander(i18n.t("about_title")):
+    st.markdown(
+        i18n.t(
+            "about_body",
+            chirps_days=INDICATORS["chirps"].freshness.expected_cadence_days,
+            smap_days=INDICATORS["smap"].freshness.expected_cadence_days,
+            wapor_days=INDICATORS["wapor"].freshness.expected_cadence_days,
+            imerg_days=INDICATORS["imerg"].freshness.expected_cadence_days,
+            clim_start=config.CLIMATOLOGY_START_YEAR,
+            clim_end=config.CLIMATOLOGY_END_YEAR,
+            country=config.CC["display_name"],
+            country_key=config.COUNTRY,
+        )
+    )
 
 # ---------- Site footer (attribution, data sources, GWU mark) ----------
 site_footer.render()

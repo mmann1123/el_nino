@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 
 from .. import config
 from ..etl import storage
-from . import drought_status
+from . import drought_status, i18n
 
 # Active country's rough center + zoom for the mini-map. Both come from
 # config.COUNTRIES[COUNTRY] so a new country just needs a registry entry.
@@ -144,9 +144,9 @@ def departamento_status_figure(
             "z_display": True,
         },
         labels={
-            "status_label": "Status",
+            "status_label": i18n.t("map_status"),
             "departamento": config.CC["dept_term"].capitalize(),
-            "z_display": "Anomaly (σ)",
+            "z_display": i18n.t("map_anomaly"),
         },
     )
 

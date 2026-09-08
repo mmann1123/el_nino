@@ -12,6 +12,8 @@ from datetime import date, datetime
 import pandas as pd
 import plotly.graph_objects as go
 
+from . import i18n
+
 # Shared Plotly modebar config used by every chart. Strips the default ~8-button
 # toolbar down to just download (camera) — pan/zoom/reset are still available
 # via direct gestures (drag-to-pan, double-click reset).
@@ -135,7 +137,7 @@ def enso_year_compare_figure(
 
     fig = climatology_envelope_figure(
         title="",
-        value_label="SST anomaly (°C) — ONI / Niño 3.4",
+        value_label=i18n.t("chart_enso_yaxis"),
         climatology=clim,
         current=cur,
         primary_column="oni",
@@ -162,8 +164,8 @@ def enso_year_compare_figure(
     fig.add_hrect(y0=y_lo, y1=-ENSO_THRESHOLD, fillcolor=ENSO_LA_NINA_BAND,
                   line_width=0, layer="below")
     for thr, txt, col in (
-        (ENSO_THRESHOLD, "El Niño ≥ +0.5 °C", "#ef5350"),
-        (-ENSO_THRESHOLD, "La Niña ≤ −0.5 °C", "#42a5f5"),
+        (ENSO_THRESHOLD, i18n.t("chart_elnino_thr"), "#ef5350"),
+        (-ENSO_THRESHOLD, i18n.t("chart_lanina_thr"), "#42a5f5"),
     ):
         fig.add_hline(
             y=thr, line=dict(color=col, width=1, dash="dot"),
@@ -187,16 +189,20 @@ def enso_year_compare_figure(
             mode="lines+markers",
             line=dict(color=CURRENT_YEAR, width=3, dash=FORECAST_DASH),
             marker=dict(size=8, color=CURRENT_YEAR),
-            name="Latest weekly Niño 3.4",
+            name=i18n.t("chart_weekly_nino34"),
             hovertemplate=(
-                f"Weekly Niño 3.4 · {d.date()}: "
-                f"{latest_nino34['nino34_ssta']:+.2f} °C<extra></extra>"
+                i18n.t(
+                    "chart_weekly_hover",
+                    date=d.date(),
+                    val=f"{latest_nino34['nino34_ssta']:+.2f}",
+                )
+                + "<extra></extra>"
             ),
         ))
 
     # A touch thicker current-year line than the indicator charts so it reads
     # against the analog overlays, and a larger legend.
-    fig.update_traces(line=dict(width=4), selector=dict(name="Current year"))
+    fig.update_traces(line=dict(width=4), selector=dict(name=i18n.t("chart_current_year")))
     fig.update_layout(height=520, legend=dict(font=dict(size=15)))
     fig.update_yaxes(range=[y_lo, y_hi])
     return fig
@@ -212,9 +218,9 @@ def climatology_envelope_figure(
     today_: date | None = None,
     last_observation: date | None = None,
     is_forecast_col: str = "is_forecast",
-    outer_label: str = "Typical range (5th–95th pct)",
-    inner_label: str = "Most common range (25th–75th pct)",
-    median_label: str = "Median (typical)",
+    outer_label: str | None = None,
+    inner_label: str | None = None,
+    median_label: str | None = None,
 ) -> go.Figure:
     """climatology: cols [doy, p05, p10, p25, p50, p75, p90, p95]
     current: cols [date, primary_column, is_forecast]
@@ -226,6 +232,10 @@ def climatology_envelope_figure(
     """
     fig = go.Figure()
     today_ = today_ or date.today()
+    # Legend labels resolve at call time so they follow the session language.
+    outer_label = outer_label or i18n.t("chart_outer")
+    inner_label = inner_label or i18n.t("chart_inner")
+    median_label = median_label or i18n.t("chart_median")
 
     if not climatology.empty:
         clim = climatology.sort_values("doy").reset_index(drop=True)
@@ -338,13 +348,13 @@ def climatology_envelope_figure(
             fig.add_trace(go.Scatter(
                 x=observed["date"], y=observed[primary_column],
                 line=dict(color=CURRENT_YEAR, width=2.5),
-                name="Current year",
+                name=i18n.t("chart_current_year"),
             ))
         if not forecast.empty:
             fig.add_trace(go.Scatter(
                 x=forecast["date"], y=forecast[primary_column],
                 line=dict(color=CURRENT_YEAR, width=2, dash=FORECAST_DASH),
-                name="Forecast (next 15 days)",
+                name=i18n.t("chart_forecast"),
             ))
 
     # Today marker. Plotly needs a millisecond timestamp for datetime axes.
@@ -355,7 +365,7 @@ def climatology_envelope_figure(
         x=today_ts,
         line=dict(color="#37474f", width=1, dash="dot"),
         annotation=dict(
-            text=f"Today · {today_.isoformat()}",
+            text=i18n.t("chart_today", date=today_.isoformat()),
             yref="paper", y=0.03, xref="x", x=today_ts,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(255,255,255,0.88)",
@@ -371,7 +381,7 @@ def climatology_envelope_figure(
             x0=pd.Timestamp(last_observation).timestamp() * 1000,
             x1=today_ts,
             fillcolor="rgba(176, 190, 197, 0.25)", line_width=0,
-            annotation_text="Awaiting new data", annotation_position="top left",
+            annotation_text=i18n.t("chart_awaiting"), annotation_position="top left",
         )
 
     # Center "today" in the chart with a symmetric ±6-month window so the

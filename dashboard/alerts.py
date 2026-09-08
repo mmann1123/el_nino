@@ -21,6 +21,7 @@ import streamlit as st
 
 from .. import config
 from ..etl import storage, triggers
+from . import i18n
 
 
 # ---------- color helpers ----------
@@ -68,15 +69,15 @@ def _country_mean_latest(indicator: str, value_col: str) -> float | None:
 def _spi3_reading(threshold: float) -> CurrentReading:
     v = _country_mean_latest("chirps", "spi_3")
     return _make_reading(
-        label="Rainfall (last 3 months)",
+        label=i18n.t("reading_rain_label"),
         value=v,
         threshold=threshold,
-        wet_text="Wetter than usual",
-        normal_text="Near normal",
-        approaching_text="Drier than usual",
-        triggered_text="Very dry — at or past alert level",
+        wet_text=i18n.t("reading_wet"),
+        normal_text=i18n.t("reading_normal"),
+        approaching_text=i18n.t("reading_approaching"),
+        triggered_text=i18n.t("reading_triggered"),
         unit_suffix="",
-        threshold_text=f"Activates if below {threshold:+.1f}",
+        threshold_text=i18n.t("reading_activates_below", thr=f"{threshold:+.1f}"),
         sign_format=lambda x: f"{x:+.2f}",
     )
 
@@ -84,15 +85,15 @@ def _spi3_reading(threshold: float) -> CurrentReading:
 def _rzsm_reading(threshold: float) -> CurrentReading:
     v = _country_mean_latest("smap", "value_anom_z")
     return _make_reading(
-        label="Soil moisture (root-zone)",
+        label=i18n.t("reading_soil_label"),
         value=v,
         threshold=threshold,
-        wet_text="Wetter than usual",
-        normal_text="Near normal",
-        approaching_text="Drier than usual",
-        triggered_text="Very dry — at or past alert level",
+        wet_text=i18n.t("reading_wet"),
+        normal_text=i18n.t("reading_normal"),
+        approaching_text=i18n.t("reading_approaching"),
+        triggered_text=i18n.t("reading_triggered"),
         unit_suffix="σ",
-        threshold_text=f"Activates if below {threshold:+.1f}σ",
+        threshold_text=i18n.t("reading_activates_below", thr=f"{threshold:+.1f}σ"),
         sign_format=lambda x: f"{x:+.2f}σ",
     )
 
@@ -101,7 +102,7 @@ def _make_reading(*, label, value, threshold,
                   wet_text, normal_text, approaching_text, triggered_text,
                   unit_suffix, threshold_text, sign_format) -> CurrentReading:
     if value is None:
-        return CurrentReading(label, "No data yet", "—", NEUTRAL, threshold_text)
+        return CurrentReading(label, i18n.t("reading_no_data"), "—", NEUTRAL, threshold_text)
     if value < threshold:
         # at or past the trigger threshold (drier than required for alert)
         return CurrentReading(label, triggered_text, sign_format(value), RED, threshold_text)
@@ -109,7 +110,7 @@ def _make_reading(*, label, value, threshold,
     if value < threshold + 0.5:
         return CurrentReading(label, approaching_text, sign_format(value), AMBER, threshold_text)
     if value < 0:
-        return CurrentReading(label, "Slightly drier than usual", sign_format(value), NEUTRAL, threshold_text)
+        return CurrentReading(label, i18n.t("reading_slightly_dry"), sign_format(value), NEUTRAL, threshold_text)
     return CurrentReading(label, wet_text, sign_format(value), GREEN, threshold_text)
 
 
@@ -119,11 +120,7 @@ def banner() -> None:
     """Render the drought-alert summary. Designed for non-technical readers."""
     status = triggers.current_status()
     if status is None:
-        st.info(
-            "Drought alert thresholds are not yet calibrated for this country. "
-            "Run `COUNTRY=<key> python -m el_nino.experiments.trigger_calibration` "
-            "and bake the recommended config into `etl/triggers.py`."
-        )
+        st.info(i18n.t("alert_not_calibrated"))
         return
     trig = status["trigger"]
     today = status["today"]
@@ -134,30 +131,30 @@ def banner() -> None:
     window_end_label = _doy_to_label(trig.window_doy[1], today.year)
 
     # Section header
-    st.markdown("### Drought alert")
+    st.markdown(i18n.t("alert_header"))
 
     # ---- status pill ----
     n_fired = len({f['departamento'] for f in triggered_this_year})
     dep_word = config.CC["dept_term_plural"] if n_fired != 1 else config.CC["dept_term"]
     if triggered_this_year:
-        pill_bg, pill_label, pill_sub = RED, "ALERT — drought conditions met", \
-            f"Triggered in {n_fired} {dep_word} so far this year"
+        pill_bg, pill_label, pill_sub = RED, i18n.t("alert_pill_alert"), \
+            i18n.t("alert_pill_alert_sub", n=n_fired, dep_word=dep_word)
     elif status["window_active"]:
-        pill_bg, pill_label, pill_sub = AMBER, "Watching closely", \
-            f"Critical growth weeks are happening now ({window_start_label}–{window_end_label})"
+        pill_bg, pill_label, pill_sub = AMBER, i18n.t("alert_pill_watching"), \
+            i18n.t("alert_pill_watching_sub", start=window_start_label, end=window_end_label)
     elif status["window_passed"]:
-        pill_bg, pill_label, pill_sub = GREEN, "All clear for this year's growing season", \
-            f"The {today.year} critical window passed without the alert triggering."
+        pill_bg, pill_label, pill_sub = GREEN, i18n.t("alert_pill_clear"), \
+            i18n.t("alert_pill_clear_sub", year=today.year)
     else:
         days_until = trig.window_doy[0] - today.timetuple().tm_yday
-        pill_bg, pill_label, pill_sub = NEUTRAL, "Pre-season — quiet for now", \
-            f"Critical growth weeks start in {days_until} days ({window_start_label})."
+        pill_bg, pill_label, pill_sub = NEUTRAL, i18n.t("alert_pill_pre"), \
+            i18n.t("alert_pill_pre_sub", days=days_until, start=window_start_label)
 
     st.markdown(
         f"<div style='background-color:{pill_bg};color:white;"
         "padding:14px 18px;border-radius:8px;margin-bottom:12px;'>"
         f"<div style='font-size:0.85em;opacity:0.85;text-transform:uppercase;letter-spacing:0.5px;'>"
-        "Current status</div>"
+        f"{i18n.t('current_status')}</div>"
         f"<div style='font-weight:700;font-size:1.25em;margin-top:2px;'>{pill_label}</div>"
         f"<div style='font-size:0.95em;margin-top:4px;opacity:0.92;'>{pill_sub}</div>"
         "</div>",
@@ -168,7 +165,7 @@ def banner() -> None:
     spi3 = _spi3_reading(trig.spi3_threshold)
     rzsm = _rzsm_reading(trig.rzsm_threshold)
 
-    st.markdown("**Right now (country-wide):**")
+    st.markdown(i18n.t("alert_right_now"))
     c1, c2 = st.columns(2)
     for col, r in zip((c1, c2), (spi3, rzsm)):
         with col:
@@ -185,32 +182,40 @@ def banner() -> None:
 
     # ---- plain-language explanation ----
     st.markdown(
-        f"**What sets off this alert.** When rainfall has been **very dry for "
-        f"the last 3 months** *and* **soil moisture is below normal**, all at "
-        f"the same time during the critical growth window "
-        f"(**{window_start_label} to {window_end_label}**). This is when "
-        f"rainfed crops in {config.CC['display_name']} are most vulnerable to "
-        f"drought — water stress during this window translates directly into "
-        f"yield loss in the {config.CC['priority_label'].lower()} "
-        f"({config.CC['priority_display_names']})."
+        i18n.t(
+            "alert_explain",
+            start=window_start_label,
+            end=window_end_label,
+            country=config.CC["display_name"],
+            priority=i18n.priority_label().lower(),
+            names=config.CC["priority_display_names"],
+        )
     )
 
     # ---- triggered-this-year details ----
     if triggered_this_year:
-        with st.expander(f"Show triggered {config.CC['dept_term_plural']}", expanded=True):
+        with st.expander(
+            i18n.t("alert_show_triggered", depts=config.CC["dept_term_plural"]),
+            expanded=True,
+        ):
             for f in sorted(triggered_this_year, key=lambda r: r["departamento"]):
                 st.markdown(
-                    f"- **{f['departamento']}** — rainfall index `{f['spi3_min']:.2f}`, "
-                    f"soil moisture `{f['rzsm_min_z']:.2f}σ`, on {f['fire_date']}"
+                    i18n.t(
+                        "alert_triggered_row",
+                        dep=f["departamento"],
+                        spi=f"{f['spi3_min']:.2f}",
+                        rzsm=f"{f['rzsm_min_z']:.2f}",
+                        date=f["fire_date"],
+                    )
                 )
 
     # ---- confidence expander (now also contains the past-triggered history) ----
     if trig.stats is not None or past_triggered:
         if trig.stats is not None:
             s = trig.stats
-            heading = f"How confident is this alert? (based on {s.n_years} years of data)"
+            heading = i18n.t("alert_confidence_heading", n=s.n_years)
         else:
-            heading = "Past years this alert triggered"
+            heading = i18n.t("alert_history_heading")
 
         with st.expander(heading):
             if trig.stats is not None:
@@ -221,30 +226,32 @@ def banner() -> None:
                     if sev.startswith("severe")
                 )
                 if severe_yrs:
-                    severe_anchor = "(e.g., " + ", ".join(str(y) for y in severe_yrs) + ")"
+                    severe_anchor = i18n.t("alert_eg", years=", ".join(str(y) for y in severe_yrs))
                 else:
                     severe_anchor = ""
                 st.markdown(
-                    f"""
-                    | Metric | Estimate | 95% range |
-                    |---|---:|---:|
-                    | When triggered, how often there was a real drought event | {s.precision:.0%} | {s.precision_ci[0]:.0%} – {s.precision_ci[1]:.0%} |
-                    | Fraction of drought years the alert catches | {s.recall:.0%} | {s.recall_ci[0]:.0%} – {s.recall_ci[1]:.0%} |
-                    | Fraction of *severe* drought years caught {severe_anchor} | {s.severe_recall:.0%} | {s.severe_recall_ci[0]:.0%} – {s.severe_recall_ci[1]:.0%} |
-                    | False alarms per decade | {s.fp_per_decade:.1f} | {s.fp_per_decade_ci[0]:.1f} – {s.fp_per_decade_ci[1]:.1f} |
-
-                    Thresholds were chosen by checking which would have flagged
-                    the documented El Niño drought years for
-                    {config.CC['display_name']} {severe_anchor} without firing
-                    in normal years. The fire test runs **per {config.CC['dept_term']}** —
-                    if any one of the {config.CC['priority_label'].lower()}
-                    ({config.CC['priority_display_names']}) crosses both
-                    thresholds, the alert is raised. With only {s.n_years}
-                    years of soil-moisture data, the margin of error is still
-                    wide. Re-run `COUNTRY={config.COUNTRY} python -m
-                    el_nino.experiments.trigger_calibration` annually as more
-                    data accumulates.
-                    """
+                    i18n.t(
+                        "alert_confidence_body",
+                        precision=f"{s.precision:.0%}",
+                        precision_lo=f"{s.precision_ci[0]:.0%}",
+                        precision_hi=f"{s.precision_ci[1]:.0%}",
+                        recall=f"{s.recall:.0%}",
+                        recall_lo=f"{s.recall_ci[0]:.0%}",
+                        recall_hi=f"{s.recall_ci[1]:.0%}",
+                        severe=f"{s.severe_recall:.0%}",
+                        severe_lo=f"{s.severe_recall_ci[0]:.0%}",
+                        severe_hi=f"{s.severe_recall_ci[1]:.0%}",
+                        fp=f"{s.fp_per_decade:.1f}",
+                        fp_lo=f"{s.fp_per_decade_ci[0]:.1f}",
+                        fp_hi=f"{s.fp_per_decade_ci[1]:.1f}",
+                        anchor=severe_anchor,
+                        country=config.CC["display_name"],
+                        dept=config.CC["dept_term"],
+                        priority=i18n.priority_label().lower(),
+                        names=config.CC["priority_display_names"],
+                        n_years=s.n_years,
+                        country_key=config.COUNTRY,
+                    )
                 )
 
             # Past triggered-years history (moved here from its own expander
@@ -255,18 +262,19 @@ def banner() -> None:
                     by_year[f["year"]].append(f["departamento"])
                 years_summary = ", ".join(str(y) for y in sorted(by_year, reverse=True))
                 st.markdown(
-                    f"**📜 Past years this alert triggered: {len(by_year)} "
-                    f"({years_summary})**"
+                    i18n.t("alert_past_years", n=len(by_year), years=years_summary)
                 )
                 for y in sorted(by_year, reverse=True):
                     deps = sorted(by_year[y])
                     dep_word = config.CC["dept_term_plural"] if len(deps) != 1 else config.CC["dept_term"]
                     st.markdown(
-                        f"- **{y}** — {len(deps)} {dep_word}: "
-                        f"{', '.join(deps)}"
+                        i18n.t(
+                            "alert_past_row",
+                            year=y, n=len(deps), dep_word=dep_word, deps=", ".join(deps),
+                        )
                     )
 
 
 def _doy_to_label(doy: int, year: int) -> str:
     d = datetime(year, 1, 1) + timedelta(days=int(doy) - 1)
-    return d.strftime("%b %d")
+    return i18n.fmt_mon_day(d)
