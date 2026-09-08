@@ -53,6 +53,9 @@ COUNTRIES: dict[str, dict] = {
         "iso2": "SV",
         "display_name": "El Salvador",
         "short_code": "ES",
+        # Default dashboard language (dashboard/i18n.py); the UI offers a
+        # toggle between this and English.
+        "default_lang": "es",
         "gaul_adm0_name": "El Salvador",
         "aoi_filename": "departamentos_es.geojson",
         "map_center": {"lat": 13.794, "lon": -88.917},
@@ -82,6 +85,7 @@ COUNTRIES: dict[str, dict] = {
         "iso2": "HT",
         "display_name": "Haiti",
         "short_code": "HT",
+        "default_lang": "fr",
         "gaul_adm0_name": "Haiti",
         "aoi_filename": "departamentos_ht.geojson",
         "map_center": {"lat": 18.85, "lon": -73.00},

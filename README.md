@@ -143,9 +143,15 @@ drives:
 - Priority departments (the drought-vulnerable focal set for alerts and calibration)
 - Silking / growth window for the calibrated trigger
 - Labeled historical drought events for calibration scoring
+- Default dashboard language (`es` for El Salvador, `fr` for Haiti). The
+  sidebar's `ES | EN` / `FR | EN` toggle switches the whole UI to English; the
+  choice is mirrored to `?lang=` so links are shareable. All display strings
+  live in [`dashboard/i18n.py`](dashboard/i18n.py).
 
-Adding a third country = append one entry, run `COUNTRY=<key> python -m
-el_nino.etl.aoi.fetch_aoi`, and the same code paths handle it.
+Adding a third country = append one entry (including `default_lang` plus
+`crop_caption_<key>` / `priority_label_<key>` strings in `dashboard/i18n.py`),
+run `COUNTRY=<key> python -m el_nino.etl.aoi.fetch_aoi`, and the same code
+paths handle it.
 
 ---
 

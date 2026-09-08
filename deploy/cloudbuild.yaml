@@ -1,9 +1,12 @@
 # Cloud Build pipeline: build the dual-purpose image and push to Artifact Registry.
 #
-# Trigger manually:
-#   gcloud builds submit --config el_nino/deploy/cloudbuild.yaml .
+# Run from the el_nino repo root (the build context is this repo):
+#   gcloud builds submit --config deploy/cloudbuild.yaml --substitutions=_REGION=us-central1 .
 #
-# (Run from the repo root so the build context includes the el_nino/ directory.)
+# .gcloudignore (repo root) keeps data/, .git, .env, etc. out of the upload, so
+# the context is ~12 MB — no manual staging needed. Tags :latest only; a plain
+# `gcloud builds submit` doesn't populate $SHORT_SHA, and the deploy scripts
+# pull :latest anyway.
 
 substitutions:
   _REGION: us-central1
@@ -18,23 +21,16 @@ steps:
     args:
       - build
       - -f
-      - el_nino/Dockerfile
-      - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA
+      - Dockerfile
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
       - .
-
-  - id: push-sha
-    name: gcr.io/cloud-builders/docker
-    args: [push, "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA"]
 
   - id: push-latest
     name: gcr.io/cloud-builders/docker
     args: [push, "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest"]
 
 images:
-  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA"
   - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest"
 
 options:

@@ -11,67 +11,44 @@ from dataclasses import dataclass
 
 from scipy.stats import norm
 
+from . import i18n
+
 
 DARK_INK = "#37474f"   # for use on light backgrounds
 
 
-@dataclass
+@dataclass(frozen=True)
 class DroughtCategory:
-    label: str
+    """One USDM-style tier. ``label`` / ``description`` resolve through
+    ``i18n`` at access time so the same category object renders in whichever
+    language the session has active."""
+
+    key: str            # i18n key stem: cat_<key>_label / cat_<key>_desc
     short: str          # USDM-style code (D0..D4, W1..W3, N, ?)
     color: str          # hex
-    description: str
     text_color: str = "white"
     is_pending: bool = False
 
+    @property
+    def label(self) -> str:
+        return i18n.t(f"cat_{self.key}_label")
 
-PENDING = DroughtCategory(
-    "Computing…", "?", "#cfd8dc",
-    "Not enough data yet to classify. The historical baseline or recent observations are still being computed.",
-    text_color=DARK_INK,
-    is_pending=True,
-)
-NORMAL = DroughtCategory(
-    "Normal", "N", "#a5d6a7",   # Material light green; reads as "OK / healthy"
-    "Conditions are within the typical range for this time of year.",
-    text_color=DARK_INK,
-)
+    @property
+    def description(self) -> str:
+        return i18n.t(f"cat_{self.key}_desc")
+
+
+PENDING = DroughtCategory("pending", "?", "#cfd8dc", text_color=DARK_INK, is_pending=True)
+NORMAL = DroughtCategory("normal", "N", "#a5d6a7", text_color=DARK_INK)   # Material light green; reads as "OK / healthy"
 # Wet tiers mirror the dry tiers symmetrically.
-W1 = DroughtCategory(
-    "Wetter than usual", "W1", "#90caf9",
-    "Wetter than typical for this time of year. Watch for delayed planting or fungal pressure.",
-    text_color=DARK_INK,
-)
-W2 = DroughtCategory(
-    "Very wet", "W2", "#42a5f5",
-    "Substantially wetter than typical. Flood risk in low-lying fields; later-season planting may slip.",
-)
-W3 = DroughtCategory(
-    "Extremely wet", "W3", "#1565c0",
-    "Extremely wet conditions for this time of year. Likely waterlogging, lost yield in affected zones.",
-)
-D0 = DroughtCategory(
-    "Abnormally Dry", "D0", "#fff176",
-    "Going into drought or recovering from drought. Watch closely.",
-    text_color=DARK_INK,
-)
-D1 = DroughtCategory(
-    "Moderate Drought", "D1", "#ffb74d",
-    "Some damage to crops; streams and soil moisture below normal.",
-    text_color=DARK_INK,
-)
-D2 = DroughtCategory(
-    "Severe Drought", "D2", "#fb8c00",
-    "Crop losses likely; water shortages common.",
-)
-D3 = DroughtCategory(
-    "Extreme Drought", "D3", "#e53935",
-    "Major crop losses; widespread water shortages.",
-)
-D4 = DroughtCategory(
-    "Exceptional Drought", "D4", "#b71c1c",
-    "Exceptional and widespread crop losses; emergency water shortages.",
-)
+W1 = DroughtCategory("w1", "W1", "#90caf9", text_color=DARK_INK)
+W2 = DroughtCategory("w2", "W2", "#42a5f5")
+W3 = DroughtCategory("w3", "W3", "#1565c0")
+D0 = DroughtCategory("d0", "D0", "#fff176", text_color=DARK_INK)
+D1 = DroughtCategory("d1", "D1", "#ffb74d", text_color=DARK_INK)
+D2 = DroughtCategory("d2", "D2", "#fb8c00")
+D3 = DroughtCategory("d3", "D3", "#e53935")
+D4 = DroughtCategory("d4", "D4", "#b71c1c")
 
 
 def classify(z: float | None) -> DroughtCategory:
@@ -104,8 +81,8 @@ def classify(z: float | None) -> DroughtCategory:
 def plain_language(z: float | None) -> str:
     """One-sentence translation of an anomaly z-score for a non-technical user."""
     if z is None or (isinstance(z, float) and (z != z)):
-        return "Not enough data yet to compare to the typical range."
+        return i18n.t("plain_none")
     pct = norm.cdf(z) * 100
     if z >= 0:
-        return f"This value is wetter than {pct:.0f}% of years on record for this time of year."
-    return f"This value is in the driest {pct:.0f}% of years on record for this time of year."
+        return i18n.t("plain_wet", pct=f"{pct:.0f}")
+    return i18n.t("plain_dry", pct=f"{pct:.0f}")

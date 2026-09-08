@@ -18,6 +18,8 @@ from datetime import date
 
 import pandas as pd
 
+from . import i18n
+
 
 def current_status_value(
     ind_df: pd.DataFrame,
@@ -57,10 +59,10 @@ def lag_phrase(last_obs: date | None, today: date) -> str:
     """Subtitle string for the status badge: 'today' / 'yesterday' /
     'N days ago'. Used in [el_nino/dashboard/app.py]."""
     if last_obs is None:
-        return "No observations yet"
+        return i18n.t("status_no_obs")
     lag = (today - last_obs).days
     if lag <= 0:
-        return "Based on today's observations"
+        return i18n.t("status_based_today")
     if lag == 1:
-        return "Based on yesterday's observations"
-    return f"Based on observations from {lag} days ago"
+        return i18n.t("status_based_yesterday")
+    return i18n.t("status_based_days", n=lag)

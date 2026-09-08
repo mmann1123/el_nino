@@ -10,6 +10,7 @@ import streamlit as st
 from .. import config
 from ..etl import freshness as freshness_io
 from ..etl.indicators import INDICATORS
+from . import i18n
 
 BADGE_COLOR = {
     "fresh": ("🟢", "#2e7d32"),
@@ -39,15 +40,11 @@ def sidebar_refresh_caption() -> None:
         next_refresh = "—"
 
     st.sidebar.caption(
-        f"Data refreshed: **{refreshed_human}**  \n"
-        f"Next refresh: **{next_refresh or '—'}**"
+        i18n.t("data_refreshed_caption", refreshed=refreshed_human, next=next_refresh or "—")
     )
 
     if not records:
-        st.sidebar.caption(
-            "_Freshness summary not yet computed. Run "
-            "`python -m el_nino.etl.run_etl finalize` once backfills complete._"
-        )
+        st.sidebar.caption(i18n.t("freshness_not_computed"))
 
 
 def indicator_badge(indicator: str, today_: date) -> str:
@@ -65,7 +62,7 @@ def indicator_badge(indicator: str, today_: date) -> str:
     last_obs = _last_obs_from_parquet(indicator)
     if last_obs is None:
         emoji, _ = BADGE_COLOR["no_data"]
-        return f"{emoji} No observations yet"
+        return i18n.t("badge_no_obs", emoji=emoji)
 
     ind_cls = INDICATORS.get(indicator)
     if ind_cls is None:
@@ -83,9 +80,14 @@ def indicator_badge(indicator: str, today_: date) -> str:
 
     emoji, _ = BADGE_COLOR.get(status, BADGE_COLOR["no_data"])
     lag = (today_ - last_obs).days
-    suffix = "today" if lag == 0 else f"{lag} day{'s' if lag != 1 else ''} ago"
-    cadence_note = f", refreshes every {cadence}d" if cadence else ""
-    return f"{emoji} Last observation: {last_obs} ({suffix}{cadence_note})"
+    if lag == 0:
+        suffix = i18n.t("lag_today")
+    elif lag == 1:
+        suffix = i18n.t("lag_one_day_ago")
+    else:
+        suffix = i18n.t("lag_days_ago", n=lag)
+    cadence_note = i18n.t("cadence_note", days=cadence) if cadence else ""
+    return i18n.t("badge_last_obs", emoji=emoji, date=last_obs, lag=suffix, cadence=cadence_note)
 
 
 def last_observation_date(indicator: str) -> date | None:

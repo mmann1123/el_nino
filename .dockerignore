@@ -1,3 +1,4 @@
+.git/
 data/
 __pycache__/
 *.pyc
@@ -7,4 +8,5 @@ __pycache__/
 .env
 .env.*
 service-account*.json
+ee-sa-key.json
 .streamlit/secrets.toml

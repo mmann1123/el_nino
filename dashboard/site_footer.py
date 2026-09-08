@@ -17,6 +17,8 @@ from pathlib import Path
 
 import streamlit as st
 
+from . import i18n
+
 
 _GWU_DEPT_URL = "https://geography.columbian.gwu.edu/"
 _GWU_LOGO_PATH = Path(__file__).resolve().parents[1] / "static" / "GW_GE.png"
@@ -109,20 +111,7 @@ def _footer_html() -> str:
 <div class="site-footer">
   <div class="footer-inner">
     <p class="footer-text">
-      Created by <a href="https://geography.columbian.gwu.edu/michael-mann" target="_blank" rel="noopener">Michael Mann, PhD</a>.
-      Data sources: rainfall &mdash;
-      <a href="https://www.chc.ucsb.edu/data/chirps" target="_blank" rel="noopener">CHIRPS</a> (UCSB Climate Hazards Center)
-      and <a href="https://gpm.nasa.gov/data/imerg" target="_blank" rel="noopener">IMERG</a> (NASA);
-      soil moisture &mdash;
-      <a href="https://smap.jpl.nasa.gov/" target="_blank" rel="noopener">SMAP L4</a> (NASA);
-      evapotranspiration &mdash;
-      <a href="https://wapor.apps.fao.org/" target="_blank" rel="noopener">WAPOR</a> (FAO);
-      El Ni&ntilde;o index &mdash;
-      <a href="https://origin.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php" target="_blank" rel="noopener">ONI</a> (NOAA);
-      administrative boundaries &mdash; FAO GAUL.
-      This site is independent and not affiliated with or endorsed by any data provider.
-      Indicators and forecasts are produced by this dashboard and are provided without
-      warranty of accuracy or fitness for any purpose.
+      {i18n.t('footer_text')}
     </p>
     {gwu_block}
   </div>

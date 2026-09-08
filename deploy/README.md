@@ -13,7 +13,10 @@ cd /home/mmann1123/Documents/github/gwu_haiti_project
 PROJECT=haiti-fews-mmann1123 bash el_nino/deploy/setup_infra.sh
 
 # 2. Build & push the shared container image (~3-5 min)
-gcloud builds submit --config el_nino/deploy/cloudbuild.yaml \
+#    Run from the el_nino repo root — the build context is this repo, and
+#    .gcloudignore keeps data/ and .git out of the upload (~12 MB context).
+cd el_nino
+gcloud builds submit --config deploy/cloudbuild.yaml \
   --substitutions=_REGION=us-central1 .
 
 # 3. Deploy / update the Cloud Run Job (ETL)
