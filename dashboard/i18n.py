@@ -102,20 +102,24 @@ def _on_toggle_change() -> None:
 _TOGGLE_CSS = """
 <style>
 /* Compact language pill toggle — "direct" scheme: the selected option gets a
-   light tint, a bold label and a darker border (not an inverted dark fill). */
+   light tint, a bold label and a darker border (not an inverted dark fill).
+   !important so the theme's primaryColor styling doesn't win. */
 [data-testid="stSidebar"] [data-testid="stSegmentedControl"] {
-  display: flex; justify-content: flex-end;
+  margin-bottom: 0.25rem;
 }
 [data-testid="stSidebar"] [data-testid="stBaseButton-segmented_control"],
 [data-testid="stSidebar"] [data-testid="stBaseButton-segmented_controlActive"] {
   font-size: 0.78rem; line-height: 1; min-height: 1.75rem;
-  padding: 0.15rem 0.6rem; letter-spacing: 0.03em;
-  border: 1px solid rgba(26, 74, 110, 0.35); color: #4a5a68;
+  padding: 0.15rem 0.7rem; letter-spacing: 0.03em;
+  border: 1px solid rgba(26, 74, 110, 0.35) !important;
+  color: #4a5a68 !important;
+  background-color: transparent !important;
 }
 [data-testid="stSidebar"] [data-testid="stBaseButton-segmented_controlActive"] {
-  font-weight: 700; color: #1a4a6e;
-  background-color: rgba(26, 74, 110, 0.10);
-  border-color: #1a4a6e;
+  font-weight: 700;
+  color: #1a4a6e !important;
+  background-color: rgba(26, 74, 110, 0.10) !important;
+  border-color: #1a4a6e !important;
 }
 </style>
 """
