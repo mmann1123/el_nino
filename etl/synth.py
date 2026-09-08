@@ -214,12 +214,22 @@ def update_freshness(today_: date) -> None:
 
 
 def _last_obs(indicator: str) -> date | None:
+    """Latest *observed* (non-forecast) date across an indicator's parquets.
+
+    Excludes is_forecast rows so the GFS 15-day forecast tail can't inflate
+    CHIRPS freshness (otherwise last_observation_date lands ~2 weeks in the
+    future and the badge is stuck on "fresh"). Mirrors
+    refresh_check._local_latest."""
     indicator_dir = config.RAW_DIR / indicator
     if not indicator_dir.exists():
         return None
     latest: date | None = None
     for parquet in indicator_dir.glob("*.parquet"):
         df = storage.read_parquet(parquet)
+        if df.empty:
+            continue
+        if "is_forecast" in df.columns:
+            df = df[~df["is_forecast"].fillna(False)]
         if df.empty:
             continue
         d = pd.to_datetime(df["date"]).max().date()
