@@ -35,10 +35,10 @@ El Niño impacts: [el_nino_agricultural_risks.md](el_nino_agricultural_risks.md)
 All three are public (no sign-in), served from Cloud Run in
 `haiti-fews-mmann1123` with Google-managed TLS certs, fronted by custom
 domains under `pygis.io`. The original run.app URLs
-(`*-33790149295.us-central1.run.app`) still work as fallbacks. Daily ETL
-refreshes run via Cloud Scheduler at 09:00–10:15 UTC. The "🔄 Check for new
-data" button in each dashboard refreshes data on-demand, rate-limited to once
-per 12 hours across all users.
+(`*-33790149295.us-central1.run.app`) still work as fallbacks. ETL refreshes
+run via Cloud Scheduler daily, starting 05:00 in each country's local timezone
+(see [How data refreshes](#how-data-refreshes)). The dashboard is read-only —
+it never triggers a fetch.
 
 ---
 
