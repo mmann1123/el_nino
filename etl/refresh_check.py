@@ -1,9 +1,11 @@
 """Smart refresh: query GEE for each asset's latest-available date, compare to
 local parquet's last observation, fetch the gap if behind.
 
-Backs the dashboard's '🔄 Check for new data' button. Designed for cheap,
-interactive use — uses one `aggregate_max` call per indicator (single-feature
-getInfo) before deciding whether to do any heavy fetching.
+`run()` is a manual catch-up utility — it uses one `aggregate_max` call per
+indicator (single-feature getInfo) before deciding whether to do any heavy
+fetching. It is no longer reachable from the dashboard; scheduled ETL jobs are
+the only automatic refresh path. `_update_freshness()` is still called by every
+run_etl subcommand.
 """
 
 from __future__ import annotations

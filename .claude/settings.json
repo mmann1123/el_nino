@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C /home/mmann1123/Documents/github/el_nino mv etl/aoi/departamentos.geojson etl/aoi/departamentos_es.geojson)"
+      "Bash(git -C /home/mmann1123/Documents/github/el_nino mv etl/aoi/departamentos.geojson etl/aoi/departamentos_es.geojson)",
+      "Read(//home/mmann1123/Documents/github/**)",
+      "Bash(python -c ' *)"
     ]
   }
 }

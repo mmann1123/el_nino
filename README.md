@@ -159,23 +159,39 @@ paths handle it.
 
 **In production** (Cloud Run + Cloud Scheduler):
 
-| Job | Cron (UTC) | Purpose |
+| Job | Cron (local) | Purpose |
 |---|---|---|
-| `${CC}-prelim` | 09:00 daily | Fill the GEE → today gap with UCSB CHIRPS-Prelim |
-| `${CC}-forecast` | 09:15 daily | Pull the latest 15-day GFS rainfall forecast |
-| `${CC}-fetch-chirps` | 09:30 every 3 days | CHIRPS V3 pentad refresh |
-| `${CC}-fetch-smap` | 09:45 every 3 days | SMAP L4 root-zone soil moisture |
-| `${CC}-fetch-wapor` | 10:00 every 3 days | FAO WAPOR ETa |
-| `${CC}-fetch-imerg` | 10:15 daily | IMERG-Late rainfall |
+| `${CC}-prelim` | 05:00 daily | Fill the GEE → today gap with UCSB CHIRPS-Prelim |
+| `${CC}-forecast` | 05:15 daily | Pull the latest 15-day GFS rainfall forecast |
+| `${CC}-fetch-chirps` | 05:30 every 3 days | CHIRPS V3 pentad refresh |
+| `${CC}-fetch-smap` | 05:45 every 3 days | SMAP L4 root-zone soil moisture |
+| `${CC}-fetch-wapor` | 06:00 every 3 days | FAO WAPOR ETa |
+| `${CC}-fetch-imerg` | 06:15 daily | IMERG-Late rainfall |
+| `${CC}-enso` | 06:30 Tuesdays | NOAA CPC ONI + weekly Niño 3.4 SST anomaly |
+| `${CC}-finalize` | 06:45 daily | Recompute SPI + climatology + anomaly z + freshness |
 
-See [deploy/schedule.sh](deploy/schedule.sh) for the scheduler entries.
+Crons run in each country's **local** timezone (`America/El_Salvador` for ES,
+`America/Port-au-Prince` for HT), so the chain starts at 05:00 local year-round.
+Haiti observes DST and El Salvador does not, so a UTC-pinned cron would drift an
+hour twice a year for HT only.
 
-**Interactively** (the "🔄 Check for new data" sidebar button):
+Entries are spaced 15 min apart so they don't race the same Cloud Run slot —
+individual runs take 2–9 minutes and write to the same parquets. `finalize` runs
+last because it derives everything from whatever the fetches above just landed.
+`${CC}` is `es` or `ht` — 8 entries per country, 16 total. See
+[deploy/schedule.sh](deploy/schedule.sh), which is idempotent
+(delete-then-create) and safe to re-run.
 
-Triggers the same flow in a single click — GEE catch-up → CHIRPS-Prelim gap
-fill → GFS forecast → CHIRPS SPI recompute. Rate-limited to **once per 12
-hours across all users** per country via a lock file at
-`STORAGE_ROOT/last_refresh.json` (see [dashboard/refresh_lock.py](dashboard/refresh_lock.py)).
+**Manually**, for an off-schedule catch-up:
+
+```bash
+python -m el_nino.etl.run_etl prelim && python -m el_nino.etl.run_etl forecast
+```
+
+The dashboard itself never fetches. It used to offer a "🔄 Check for new data"
+sidebar button, which was removed because running an ETL pull inside the
+serving process pins a Cloud Run instance for the duration of the pull — and
+the scheduler already does the same work daily.
 
 ---
 
@@ -246,7 +262,7 @@ el_nino/
 ├── notes.md                  # ES agronomy notes
 ├── etl/
 │   ├── run_etl.py            # CLI: synth | fetch | backfill | prelim | forecast | finalize | climatology | enso
-│   ├── refresh_check.py      # "Check for new data" orchestrator (GEE + prelim + forecast)
+│   ├── refresh_check.py      # manual catch-up orchestrator (GEE + prelim + forecast) + freshness writer
 │   ├── chirps_prelim.py      # UCSB CHIRPS-Prelim daily-TIFF gap fill
 │   ├── triggers.py           # CalibratedTrigger runtime evaluator (country-aware)
 │   ├── synth.py              # synthetic data for local dev
@@ -266,7 +282,6 @@ el_nino/
 │   ├── freshness.py          # data-freshness badges
 │   ├── status.py             # current-status helpers
 │   ├── auth.py               # Streamlit OIDC gate (disabled by default — public)
-│   ├── refresh_lock.py       # 12-hour cross-user rate limit on "Check for new data"
 │   └── site_footer.py        # GWU mark + data attribution + disclaimer
 ├── experiments/
 │   ├── trigger_calibration.py

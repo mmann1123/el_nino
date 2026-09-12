@@ -33,7 +33,6 @@ from el_nino.dashboard import (
     freshness,
     i18n,
     map as map_view,
-    refresh_lock,
     site_footer,
     status as status_view,
 )  # noqa: E402
@@ -221,47 +220,10 @@ show_forecast = st.sidebar.toggle(
     help=i18n.t("forecast_toggle_help"),
 )
 
-# Smart reload: checks the source assets for new data and reports up-to-date status.
-# Rate-limited to once per 12h across all users (lock file in STORAGE_ROOT),
-# so a busy session doesn't hammer GEE/UCSB. The daily scheduler runs the
-# same refresh automatically; the button is for interactive freshness.
-_refresh_allowed, _refresh_last, _refresh_next = refresh_lock.check_allowed()
-if _refresh_allowed:
-    reload_clicked = st.sidebar.button(
-        i18n.t("check_new_data_btn"),
-        help=i18n.t("check_new_data_help"),
-    )
-    if reload_clicked:
-        with st.sidebar.status(i18n.t("checking_status"), expanded=True) as status:
-            try:
-                from el_nino.etl import refresh_check
-
-                results = refresh_check.run(verbose_logger=lambda m: status.write(m))
-                any_changed = any(r["fetched_rows"] > 0 for r in results)
-                if any_changed:
-                    status.update(label=i18n.t("found_new_data"), state="complete")
-                else:
-                    status.update(label=i18n.t("already_up_to_date"), state="complete")
-                refresh_lock.record_refresh()
-                st.cache_data.clear()
-            except Exception as e:
-                status.update(label=i18n.t("refresh_failed", err=e), state="error")
-        st.rerun()
-else:
-    st.sidebar.button(
-        i18n.t("check_new_data_btn"),
-        disabled=True,
-        help=i18n.t(
-            "check_new_data_disabled_help",
-            last=refresh_lock.format_relative(_refresh_last),
-            next=refresh_lock.format_relative(_refresh_next),
-        ),
-    )
-    st.sidebar.caption(
-        i18n.t("refresh_used_caption", next=refresh_lock.format_relative(_refresh_next))
-    )
-
-# Refresh timestamps directly under the "Check for new data" button.
+# Data refresh is scheduler-driven only (see deploy/schedule.sh). The dashboard
+# never triggers a fetch: running ETL inside the serving process held a Cloud Run
+# instance open for the length of a GEE pull, and the same work already runs
+# daily. These captions report when the scheduler last landed data.
 freshness.sidebar_refresh_caption()
 
 # Required Flaticon attribution for the sidebar icon (drought.png).

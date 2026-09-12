@@ -412,54 +412,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "es": "Agrega el pronóstico de lluvia a 15 días CHIRPS3-GEFS como un segmento discontinuo.",
         "fr": "Ajoute la prévision de pluie à 15 jours CHIRPS3-GEFS sous forme de segment en pointillé.",
     },
-    "check_new_data_btn": {
-        "en": "🔄 Check for new data",
-        "es": "🔄 Buscar datos nuevos",
-        "fr": "🔄 Vérifier les nouvelles données",
-    },
-    "check_new_data_help": {
-        "en": "Queries Earth Engine for the latest data, pulls UCSB CHIRPS-Prelim "
-              "to fill the recent gap, and refreshes the 15-day GFS rainfall "
-              "forecast. Limited to once per 12 hours across all users.",
-        "es": "Consulta Earth Engine por los datos más recientes, descarga UCSB CHIRPS-Prelim "
-              "para llenar el vacío reciente y actualiza el pronóstico de lluvia GFS a 15 días. "
-              "Limitado a una vez cada 12 horas para todos los usuarios.",
-        "fr": "Interroge Earth Engine pour les données les plus récentes, récupère UCSB "
-              "CHIRPS-Prelim pour combler le retard récent et actualise la prévision de pluie "
-              "GFS à 15 jours. Limité à une fois par 12 heures pour tous les utilisateurs.",
-    },
-    "check_new_data_disabled_help": {
-        "en": "Already refreshed {last}. Next refresh available {next}.",
-        "es": "Ya se actualizó {last}. Próxima actualización disponible {next}.",
-        "fr": "Déjà actualisé {last}. Prochaine actualisation possible {next}.",
-    },
-    "refresh_used_caption": {
-        "en": "⏱️ Daily refresh used · next available {next}",
-        "es": "⏱️ Actualización diaria usada · próxima disponible {next}",
-        "fr": "⏱️ Actualisation quotidienne utilisée · prochaine {next}",
-    },
-    "checking_status": {
-        "en": "Checking source assets…",
-        "es": "Revisando las fuentes de datos…",
-        "fr": "Vérification des sources de données…",
-    },
-    "found_new_data": {
-        "en": "Found new data — fetched and merged.",
-        "es": "Se encontraron datos nuevos — descargados y combinados.",
-        "fr": "Nouvelles données trouvées — récupérées et fusionnées.",
-    },
-    "already_up_to_date": {
-        "en": "Already up to date.",
-        "es": "Ya está actualizado.",
-        "fr": "Déjà à jour.",
-    },
-    "refresh_failed": {
-        "en": "Failed: {err}",
-        "es": "Error: {err}",
-        "fr": "Échec : {err}",
-    },
-    "rel_in": {"en": "in {unit}", "es": "en {unit}", "fr": "dans {unit}"},
-    "rel_ago": {"en": "{unit} ago", "es": "hace {unit}", "fr": "il y a {unit}"},
     # ---- freshness ----
     "data_refreshed_caption": {
         "en": "Data refreshed: **{refreshed}**  \nNext refresh: **{next}**",

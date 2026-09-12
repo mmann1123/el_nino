@@ -21,9 +21,8 @@ BADGE_COLOR = {
 
 
 def sidebar_refresh_caption() -> None:
-    """Render 'Data refreshed' and 'Next refresh' as small captions under the
-    sidebar's 'Check for new data' button. Replaces the old big metric strip
-    at the top of the page."""
+    """Render 'Data refreshed' and 'Next refresh' as small captions at the foot
+    of the sidebar. Replaces the old big metric strip at the top of the page."""
     records = freshness_io.read_all()
     if records:
         refreshed_at = max(
