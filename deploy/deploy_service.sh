@@ -25,7 +25,7 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${IMAGE_NAME}:latest"
 # them by hostname, and one property keeps a country switch as a single session.
 # Not a secret (it ships in the page source of every public deploy). Export
 # GA_MEASUREMENT_ID= (empty) to deploy a dashboard untracked.
-GA_MEASUREMENT_ID="${GA_MEASUREMENT_ID-G-PW1R91K8VT}"
+GA_MEASUREMENT_ID="${GA_MEASUREMENT_ID-G-N16M48WHG1}"
 
 echo "Deploying Cloud Run Service '$SERVICE_NAME' (country=$COUNTRY) from $IMAGE"
 

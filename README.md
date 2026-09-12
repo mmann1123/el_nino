@@ -246,7 +246,7 @@ Each country gets its own bucket, service account, Cloud Run Job, and six
 Scheduler entries. The shared Docker image is built once.
 
 **Analytics**: all three public surfaces report to one Google Analytics 4
-property (`G-PW1R91K8VT`), committed as the deploy default and split by GA4's
+property (`G-N16M48WHG1`), committed as the deploy default and split by GA4's
 Hostname dimension. Local runs serve no tag. See
 [deploy/README.md](deploy/README.md#google-analytics).
 

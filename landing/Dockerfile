@@ -37,4 +37,4 @@ ENV HT_URL="#"
 # Not a secret (it ships in the page source). Baked in as the default because
 # the landing page has no deploy script to carry it; override with a Cloud Run
 # env var, or set it empty to serve the page untagged.
-ENV GA_MEASUREMENT_ID="G-PW1R91K8VT"
+ENV GA_MEASUREMENT_ID="G-N16M48WHG1"

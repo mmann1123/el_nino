@@ -91,7 +91,7 @@ Swap `es-drought-etl` for `ht-drought-etl` to watch Haiti.
 ## Google Analytics
 
 All three public surfaces (landing + both dashboards) share **one GA4 property**,
-measurement ID **`G-PW1R91K8VT`**. They're subdomains of `pygis.io`, so GA4 keeps
+measurement ID **`G-N16M48WHG1`**. They're subdomains of `pygis.io`, so GA4 keeps
 a country switch inside a single session; split them after the fact with the
 built-in **Hostname** dimension. The ID is not a secret — it ships in the page
 source of every public deploy — so it's committed as the default in
@@ -124,7 +124,7 @@ Verify it actually landed, rather than trusting the env var:
 ```bash
 for u in https://drought.pygis.io https://es.drought.pygis.io https://ht.drought.pygis.io; do
   printf "%-32s " "$u"
-  curl -sf "$u" | grep -q G-PW1R91K8VT && echo "tagged" || echo "NO TAG"
+  curl -sf "$u" | grep -q G-N16M48WHG1 && echo "tagged" || echo "NO TAG"
 done
 ```
 
