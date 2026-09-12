@@ -102,13 +102,20 @@ time, filtered to the active country.
   silking window. Operating points live in `TRIGGERS_BY_COUNTRY`, calibrated by
   [experiments/trigger_calibration.py](experiments/trigger_calibration.py)
   against `config.CC['labeled_events']`.
-- [etl/refresh_check.py](etl/refresh_check.py) — backs the dashboard's "Check
-  for new data" button. One cheap `aggregate_max` getInfo per indicator to
-  decide whether a heavier fetch is needed; rate-limited to once per 12h across
-  all users via [dashboard/refresh_lock.py](dashboard/refresh_lock.py).
+- [etl/refresh_check.py](etl/refresh_check.py) — `run()` is a manual catch-up
+  utility (one cheap `aggregate_max` getInfo per indicator decides whether a
+  heavier fetch is needed); `_update_freshness()` writes `freshness.json` and is
+  called by every `run_etl` subcommand. **The dashboard never triggers ETL** —
+  scheduled Cloud Run Jobs are the only automatic refresh path. Don't reintroduce
+  a fetch button: ETL inside the serving process pins a Cloud Run instance for
+  the length of the pull, and Cloud Run service time is ~90% of this project's bill.
 - [dashboard/](dashboard/) — Streamlit app (Overview / Indicator Detail / Year
   Compare). `data.py` is the country-filtered parquet read layer; `auth.py` is
-  an OIDC gate disabled by default (public deploys).
+  an OIDC gate disabled by default (public deploys). `inject_ga.py` patches the
+  GA4 tag into Streamlit's own `static/index.html` from the container `CMD` —
+  it can't go in app code, because Streamlit sanitizes `<script>` out of
+  `st.markdown` and `st.components.v1.html` is a sandboxed iframe. No-op unless
+  `GA_MEASUREMENT_ID` is set, so local runs are untracked.
 - [dashboard/i18n.py](dashboard/i18n.py) — all user-facing dashboard text.
   `STRINGS[key] = {en, es, fr}`; call `i18n.t(key, **fmt)`. The sidebar toggle
   switches between English and the country's `default_lang` (`es` for ES,

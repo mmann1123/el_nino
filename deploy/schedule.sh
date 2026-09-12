@@ -12,6 +12,16 @@ PROJECT="${PROJECT:-haiti-fews-mmann1123}"
 REGION="${REGION:-us-central1}"
 COUNTRY="${COUNTRY:-el_salvador}"
 COUNTRY_CODE="${COUNTRY_CODE:-es}"
+
+# Crons below are expressed in each country's LOCAL time, not UTC, so the chain
+# always starts at 05:00 local. El Salvador never observes DST (UTC-6 year-round);
+# Haiti does (UTC-5 winter, UTC-4 summer), so a UTC-pinned cron drifts an hour
+# twice a year for HT.
+case "$COUNTRY_CODE" in
+  es) TIME_ZONE="${TIME_ZONE:-America/El_Salvador}" ;;
+  ht) TIME_ZONE="${TIME_ZONE:-America/Port-au-Prince}" ;;
+  *)  TIME_ZONE="${TIME_ZONE:-UTC}" ;;
+esac
 SA_NAME="${SA_NAME:-${COUNTRY_CODE}-drought-etl}"
 SA_EMAIL="${SA_NAME}@${PROJECT}.iam.gserviceaccount.com"
 JOB_NAME="${JOB_NAME:-${COUNTRY_CODE}-drought-etl}"
@@ -33,14 +43,15 @@ create_scheduler() {
   local body
   body=$(printf '{"overrides":{"containerOverrides":[{"args":%s}]}}' "$args_json")
 
-  echo "=> $name  '$cron'  args=$args_csv"
+  echo "=> $name  '$cron' ($TIME_ZONE)  args=$args_csv"
 
-  gcloud scheduler jobs delete "$name" --location="$REGION" --quiet 2>/dev/null || true
+  gcloud scheduler jobs delete "$name" --project="$PROJECT" --location="$REGION" --quiet 2>/dev/null || true
   gcloud scheduler jobs create http "$name" \
+    --project="$PROJECT" \
     --location="$REGION" \
     --description="$desc" \
     --schedule="$cron" \
-    --time-zone="UTC" \
+    --time-zone="$TIME_ZONE" \
     --uri="$URI" \
     --http-method=POST \
     --oauth-service-account-email="$SA_EMAIL" \
@@ -49,37 +60,38 @@ create_scheduler() {
     --message-body="$body"
 }
 
-# All times in UTC. ES is UTC-6 year-round (09:00 UTC = 03:00 local); HT is
-# UTC-5 (09:00 UTC = 04:00 local). Entries are spaced 15 min apart so they
-# don't race the same Cloud Run slot.
+# All times are LOCAL to $TIME_ZONE (see the case block above). The chain starts
+# at 05:00 local daily and finishes by ~06:45. Entries are spaced 15 min apart so
+# they don't race the same Cloud Run slot — individual runs take 2-9 minutes, and
+# they write to the same parquets, so overlapping executions would race on upsert.
 
 create_scheduler "${COUNTRY_CODE}-prelim" \
-  "0 9 * * *" \
+  "0 5 * * *" \
   "UCSB CHIRPS-Prelim daily (3-day-latency rainfall fill)" \
   "-m,el_nino.etl.run_etl,prelim"
 
 create_scheduler "${COUNTRY_CODE}-forecast" \
-  "15 9 * * *" \
+  "15 5 * * *" \
   "NOAA GFS 15-day rainfall forecast" \
   "-m,el_nino.etl.run_etl,forecast"
 
 create_scheduler "${COUNTRY_CODE}-fetch-chirps" \
-  "30 9 */3 * *" \
+  "30 5 */3 * *" \
   "CHIRPS observed from GEE (every 3 days)" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,chirps"
 
 create_scheduler "${COUNTRY_CODE}-fetch-smap" \
-  "45 9 */3 * *" \
+  "45 5 */3 * *" \
   "SMAP L4 root-zone soil moisture (every 3 days)" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,smap"
 
 create_scheduler "${COUNTRY_CODE}-fetch-wapor" \
-  "0 10 */3 * *" \
+  "0 6 */3 * *" \
   "FAO WAPOR v3 L1 AETI evapotranspiration (every 3 days)" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,wapor"
 
 create_scheduler "${COUNTRY_CODE}-fetch-imerg" \
-  "15 10 * * *" \
+  "15 6 * * *" \
   "NASA IMERG-Late daily rainfall" \
   "-m,el_nino.etl.run_etl,fetch,--indicator,imerg"
 
@@ -87,9 +99,17 @@ create_scheduler "${COUNTRY_CODE}-fetch-imerg" \
 # weekly Niño 3.4 SST anomaly (updated Mondays). Weekly Tuesday refresh covers
 # both; no GEE involved, so it's cheap.
 create_scheduler "${COUNTRY_CODE}-enso" \
-  "30 10 * * 2" \
+  "30 6 * * 2" \
   "NOAA CPC ONI + weekly Niño 3.4 SST anomaly" \
   "-m,el_nino.etl.run_etl,enso"
+
+# Must run LAST — it recomputes SPI, climatology, anomaly z-scores and
+# freshness.json from whatever the fetch entries above just landed. Without it
+# the raw parquets update but the dashboard's trigger evaluation goes stale.
+create_scheduler "${COUNTRY_CODE}-finalize" \
+  "45 6 * * *" \
+  "Recompute SPI + climatology + anomaly z + freshness" \
+  "-m,el_nino.etl.run_etl,finalize"
 
 # Executing a Cloud Run *Job* needs the `run.jobs.run` permission, which lives
 # in roles/run.developer — NOT roles/run.invoker (that only invokes *services*).
@@ -105,5 +125,5 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 
 echo
 echo "All scheduler entries for ${COUNTRY_CODE}:"
-gcloud scheduler jobs list --location="$REGION" --filter="name~${COUNTRY_CODE}-" \
+gcloud scheduler jobs list --project="$PROJECT" --location="$REGION" --filter="name~${COUNTRY_CODE}-" \
   --format='table(name.basename(),schedule,state,description)'

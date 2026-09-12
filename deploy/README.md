@@ -88,6 +88,67 @@ gcloud beta run jobs logs read --job=es-drought-etl --region=us-central1 --limit
 
 Swap `es-drought-etl` for `ht-drought-etl` to watch Haiti.
 
+## Google Analytics
+
+All three public surfaces (landing + both dashboards) share **one GA4 property**,
+measurement ID **`G-N16M48WHG1`**. They're subdomains of `pygis.io`, so GA4 keeps
+a country switch inside a single session; split them after the fact with the
+built-in **Hostname** dimension. The ID is not a secret — it ships in the page
+source of every public deploy — so it's committed as the default in
+[deploy_service.sh](deploy_service.sh) and [../landing/Dockerfile](../landing/Dockerfile)
+rather than passed in by hand. Analytics is off wherever `GA_MEASUREMENT_ID` is
+empty, which is every local run and the ETL Job.
+
+**Setting the env var alone does nothing** — the code that reads it
+(`inject_ga.py` and the dashboard `CMD`; the `__GA_SNIPPET__` placeholder and
+`entrypoint.sh` on the landing page) ships *inside* the images. Any image built
+before those existed will happily carry the env var and emit no tag. Both
+images must be rebuilt once; after that, changing the ID really is just an env
+var.
+
+```bash
+# From the el_nino repo root.
+# 1. Dashboards — rebuild, then redeploy so Cloud Run picks up the new :latest
+gcloud builds submit --config deploy/cloudbuild.yaml --project=haiti-fews-mmann1123 .
+bash deploy/deploy_service.sh
+COUNTRY=haiti COUNTRY_CODE=ht bash deploy/deploy_service.sh
+
+# 2. Landing page (Cloud Run service name is `drought`, not `drought-landing`)
+gcloud builds submit --config deploy/cloudbuild.landing.yaml --project=haiti-fews-mmann1123 .
+gcloud run deploy drought --region=us-central1 --project=haiti-fews-mmann1123 \
+  --image=us-central1-docker.pkg.dev/haiti-fews-mmann1123/el-nino/drought-landing:latest
+```
+
+Verify it actually landed, rather than trusting the env var:
+
+```bash
+for u in https://drought.pygis.io https://es.drought.pygis.io https://ht.drought.pygis.io; do
+  printf "%-32s " "$u"
+  curl -sf "$u" | grep -q G-N16M48WHG1 && echo "tagged" || echo "NO TAG"
+done
+```
+
+To deploy a surface untracked, pass an explicitly empty value:
+`GA_MEASUREMENT_ID= bash deploy/deploy_service.sh`.
+
+**How the tag gets onto the page.** The landing page is plain HTML — the
+snippet is substituted into `<head>` by [../landing/entrypoint.sh](../landing/entrypoint.sh)
+at container start. The dashboards are not: Streamlit strips `<script>` from
+`st.markdown(unsafe_allow_html=True)`, and `st.components.v1.html` renders in a
+sandboxed iframe that GA would report instead of the real page. So
+[../dashboard/inject_ga.py](../dashboard/inject_ga.py) patches the snippet into
+Streamlit's own `static/index.html` from the container's `CMD`, before the
+server boots. Confirm it took effect in the deploy logs:
+
+```bash
+gcloud beta run services logs read es-drought-dash --region=us-central1 --limit=50 | grep inject_ga
+```
+
+Caveat: because the dashboard is a single-page app whose tabs don't change the
+URL, GA records **one page_view per visit** per country. Sessions, users,
+geography, referrers, and device all work normally; per-tab interaction would
+need custom events.
+
 ## Cost (rough, USD/month, per country)
 
 - Cloud Run Job: ~6 jobs/day × ~3 min × 2 vCPU ≈ ~18 vCPU-hours/mo = **$1.50**
