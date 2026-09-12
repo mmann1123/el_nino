@@ -45,8 +45,9 @@ create_scheduler() {
 
   echo "=> $name  '$cron' ($TIME_ZONE)  args=$args_csv"
 
-  gcloud scheduler jobs delete "$name" --location="$REGION" --quiet 2>/dev/null || true
+  gcloud scheduler jobs delete "$name" --project="$PROJECT" --location="$REGION" --quiet 2>/dev/null || true
   gcloud scheduler jobs create http "$name" \
+    --project="$PROJECT" \
     --location="$REGION" \
     --description="$desc" \
     --schedule="$cron" \
@@ -124,5 +125,5 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 
 echo
 echo "All scheduler entries for ${COUNTRY_CODE}:"
-gcloud scheduler jobs list --location="$REGION" --filter="name~${COUNTRY_CODE}-" \
+gcloud scheduler jobs list --project="$PROJECT" --location="$REGION" --filter="name~${COUNTRY_CODE}-" \
   --format='table(name.basename(),schedule,state,description)'

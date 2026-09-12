@@ -27,11 +27,19 @@ echo "Deploying Cloud Run Service '$SERVICE_NAME' (country=$COUNTRY) from $IMAGE
 # --allow-unauthenticated makes the dashboard publicly accessible.
 # The Service uses the same image and bucket as the ETL Job; STORAGE_ROOT
 # points at the gcsfuse mount so the dashboard reads what the ETL writes.
+#
+# Sizing: measured peak is ~350 MB and ~40% of one vCPU, so 1Gi leaves ~3x
+# headroom (gcsfuse caches on top of the Python heap — don't drop to 512Mi).
+# CPU must stay >= 1: Cloud Run rejects sub-1 CPU unless concurrency is 1, and
+# this service peaks at ~52 concurrent requests on a single instance. Serving
+# time is billed per open Streamlit websocket, not per CPU-second, so packing
+# high concurrency onto one instance is what keeps the bill small.
 gcloud run deploy "$SERVICE_NAME" \
+  --project="$PROJECT" \
   --image="$IMAGE" \
   --region="$REGION" \
   --service-account="$SA_EMAIL" \
-  --cpu=1 --memory=2Gi \
+  --cpu=1 --memory=1Gi \
   --min-instances=0 \
   --max-instances=4 \
   --port=8080 \
@@ -42,7 +50,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --add-volume="name=gcs,type=cloud-storage,bucket=${BUCKET}" \
   --add-volume-mount="volume=gcs,mount-path=/mnt/gcs"
 
-URL=$(gcloud run services describe "$SERVICE_NAME" --region="$REGION" --format='value(status.url)')
+URL=$(gcloud run services describe "$SERVICE_NAME" --project="$PROJECT" --region="$REGION" --format='value(status.url)')
 echo
 echo "Service deployed: $URL"
 echo "Bookmark this URL — it's the country's dashboard entry point."

@@ -26,6 +26,7 @@ echo "Deploying Cloud Run Job '$JOB_NAME' (country=$COUNTRY) from $IMAGE"
 # The Job runs a single ETL subcommand. Scheduler entries override --args to
 # pick which subcommand to run (prelim, forecast, fetch --indicator X, etc.).
 gcloud run jobs deploy "$JOB_NAME" \
+  --project="$PROJECT" \
   --image="$IMAGE" \
   --region="$REGION" \
   --service-account="$SA_EMAIL" \
