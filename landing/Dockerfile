@@ -32,3 +32,9 @@ ENV PORT=8080
 # Country URLs — set at deploy time via Cloud Run env vars
 ENV ES_URL="#"
 ENV HT_URL="#"
+
+# Google Analytics 4 measurement ID — the same property as both dashboards.
+# Not a secret (it ships in the page source). Baked in as the default because
+# the landing page has no deploy script to carry it; override with a Cloud Run
+# env var, or set it empty to serve the page untagged.
+ENV GA_MEASUREMENT_ID="G-PW1R91K8VT"

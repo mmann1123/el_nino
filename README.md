@@ -245,6 +245,11 @@ COUNTRY=haiti COUNTRY_CODE=ht PROJECT=haiti-fews-mmann1123 bash deploy/schedule.
 Each country gets its own bucket, service account, Cloud Run Job, and six
 Scheduler entries. The shared Docker image is built once.
 
+**Analytics**: all three public surfaces report to one Google Analytics 4
+property (`G-PW1R91K8VT`), committed as the deploy default and split by GA4's
+Hostname dimension. Local runs serve no tag. See
+[deploy/README.md](deploy/README.md#google-analytics).
+
 **Landing page**: a static HTML page with a video background lives in
 [landing/](landing/) — two country cards that link to each country's Cloud Run
 URL. Deploy as a third tiny Cloud Run service (Dockerfile pending, see the

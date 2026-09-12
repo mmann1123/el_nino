@@ -21,6 +21,11 @@ REPO="${REPO:-el-nino}"
 IMAGE_NAME="${IMAGE_NAME:-el-nino-dash}"
 SERVICE_NAME="${SERVICE_NAME:-${COUNTRY_CODE}-drought-dash}"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${IMAGE_NAME}:latest"
+# GA4 measurement ID. Shared by both countries and the landing page — GA4 splits
+# them by hostname, and one property keeps a country switch as a single session.
+# Not a secret (it ships in the page source of every public deploy). Export
+# GA_MEASUREMENT_ID= (empty) to deploy a dashboard untracked.
+GA_MEASUREMENT_ID="${GA_MEASUREMENT_ID-G-PW1R91K8VT}"
 
 echo "Deploying Cloud Run Service '$SERVICE_NAME' (country=$COUNTRY) from $IMAGE"
 
@@ -46,7 +51,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --timeout=300 \
   --allow-unauthenticated \
   --ingress=all \
-  --set-env-vars="STORAGE_ROOT=/mnt/gcs,GEE_PROJECT=${PROJECT},COUNTRY=${COUNTRY},AUTH_MODE=disabled" \
+  --set-env-vars="STORAGE_ROOT=/mnt/gcs,GEE_PROJECT=${PROJECT},COUNTRY=${COUNTRY},AUTH_MODE=disabled,GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID}" \
   --add-volume="name=gcs,type=cloud-storage,bucket=${BUCKET}" \
   --add-volume-mount="volume=gcs,mount-path=/mnt/gcs"
 

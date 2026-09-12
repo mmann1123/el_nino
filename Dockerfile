@@ -35,7 +35,13 @@ ENV STORAGE_ROOT=/mnt/gcs
 ENV AUTH_MODE=disabled
 ENV PORT=8080
 
+# Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty = untracked, which is
+# what local runs and the ETL Job want. Set it per-service at deploy time.
+ENV GA_MEASUREMENT_ID=""
+
 # Default to the dashboard. The Cloud Run Job overrides with a `python -m ...` command.
-CMD ["streamlit", "run", "el_nino/dashboard/app.py", \
-     "--server.port=8080", "--server.address=0.0.0.0", \
-     "--server.headless=true", "--browser.gatherUsageStats=false"]
+#
+# inject_ga patches the gtag snippet into Streamlit's static/index.html before
+# the server boots — it can't be done from app.py, which only runs after the
+# browser has already been served that HTML. It exits 0 when untagged.
+CMD ["sh", "-c", "python -m el_nino.dashboard.inject_ga; exec streamlit run el_nino/dashboard/app.py --server.port=8080 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false"]

@@ -1,0 +1,43 @@
+# Cloud Build pipeline for the static landing page (the country picker served
+# at drought.pygis.io by the Cloud Run service named `drought`).
+#
+# Separate from cloudbuild.yaml because this is a different Dockerfile and a
+# different image — but the SAME build context (the repo root), since
+# landing/Dockerfile copies both ./landing/ and ./static/ (the background video
+# and the GW logo).
+#
+# Run from the el_nino repo root:
+#   gcloud builds submit --config deploy/cloudbuild.landing.yaml \
+#     --project=haiti-fews-mmann1123 .
+#
+# Then roll it out (Cloud Run does not redeploy :latest on its own):
+#   gcloud run deploy drought \
+#     --image=us-central1-docker.pkg.dev/haiti-fews-mmann1123/el-nino/drought-landing:latest \
+#     --region=us-central1 --project=haiti-fews-mmann1123
+
+substitutions:
+  _REGION: us-central1
+  _REPO: el-nino
+  _IMAGE: drought-landing
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - landing/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+      - .
+
+  - id: push-latest
+    name: gcr.io/cloud-builders/docker
+    args: [push, "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest"]
+
+images:
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest"
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY

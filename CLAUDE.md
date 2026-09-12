@@ -111,7 +111,11 @@ time, filtered to the active country.
   the length of the pull, and Cloud Run service time is ~90% of this project's bill.
 - [dashboard/](dashboard/) — Streamlit app (Overview / Indicator Detail / Year
   Compare). `data.py` is the country-filtered parquet read layer; `auth.py` is
-  an OIDC gate disabled by default (public deploys).
+  an OIDC gate disabled by default (public deploys). `inject_ga.py` patches the
+  GA4 tag into Streamlit's own `static/index.html` from the container `CMD` —
+  it can't go in app code, because Streamlit sanitizes `<script>` out of
+  `st.markdown` and `st.components.v1.html` is a sandboxed iframe. No-op unless
+  `GA_MEASUREMENT_ID` is set, so local runs are untracked.
 - [dashboard/i18n.py](dashboard/i18n.py) — all user-facing dashboard text.
   `STRINGS[key] = {en, es, fr}`; call `i18n.t(key, **fmt)`. The sidebar toggle
   switches between English and the country's `default_lang` (`es` for ES,
