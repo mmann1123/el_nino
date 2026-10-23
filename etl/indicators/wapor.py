@@ -26,6 +26,7 @@ class WAPOR(Indicator):
     status_window_days = 10  # one dekad — WAPOR is already a 10-day mean
     climatology_doy_window = 30  # only 8 years of record — widen to ±30 days for stable fences
     default_chunk_months = 60  # dekadal × 14 deps is tiny; large chunks fine
+    crop_weighted = True  # see Indicator.crop_weighted
 
     ASSET = "FAO/WAPOR/3/L1_AETI_D"
     BAND = "L1-AETI-D"
@@ -47,12 +48,6 @@ class WAPOR(Indicator):
         if df.empty:
             return df
         df["value"] = df["value"] * self.SCALE
-        df = df.rename(columns={"value": "eta_mm"})
-        df["is_forecast"] = False
-        return df
-        df = self.reduce_imagecollection_by_departamento(coll, band=self.BAND)
-        if df.empty:
-            return df
         df = df.rename(columns={"value": "eta_mm"})
         df["is_forecast"] = False
         return df
