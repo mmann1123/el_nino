@@ -194,7 +194,10 @@ class Indicator(ABC):
                 scale=img.projection().nominalScale(),
             )
             date_str = img.date().format("YYYY-MM-dd")
-            return stats.map(lambda f: f.set({"date": date_str, "indicator_band": band}))
+            # Drop the department polygon from every result: getInfo() would
+            # otherwise ship a full copy of the AOI per image, which OOMs a
+            # 2 GiB Cloud Run Job on a multi-year WAPOR chunk.
+            return stats.map(lambda f: f.setGeometry(None).set({"date": date_str, "indicator_band": band}))
 
         flat = coll.map(per_image).flatten()
         info = flat.getInfo()
