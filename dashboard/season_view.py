@@ -23,12 +23,12 @@ def _record(today_: date) -> season.SeasonRecord | None:
     return season.season_record(today_)
 
 
-def _chip(d: date | None, color: str) -> str:
-    if d is None:
+def _chip(label: str | None, color: str) -> str:
+    if label is None:
         return "<span style='color:#90a4ae;'>—</span>"
     return (
         f"<span style='background-color:{color};color:white;padding:2px 10px;"
-        f"border-radius:10px;font-size:0.85em;white-space:nowrap;'>{i18n.fmt_mon_day(d)}</span>"
+        f"border-radius:10px;font-size:0.85em;white-space:nowrap;'>{label}</span>"
     )
 
 
@@ -44,9 +44,12 @@ def _table(rec: season.SeasonRecord) -> str:
     )
     rows = []
     for e in rec.entries:
-        cells = [e.departamento, _chip(e.alert_date, ALERT_COLOR)]
+        alert = i18n.fmt_mon_day(e.alert_date) if e.alert_date else None
+        cells = [e.departamento, _chip(alert, ALERT_COLOR)]
         if has_confirm:
-            cells.append(_chip(e.confirmed_date, CONFIRMED_COLOR))
+            # The dekad whose data confirmed it, not just its start date.
+            dekad = i18n.fmt_day_range(e.confirmed_date, e.confirmed_end) if e.confirmed_date else None
+            cells.append(_chip(dekad, CONFIRMED_COLOR))
         rows.append("".join(
             f"<td style='padding:6px 12px;border-bottom:1px solid #eceff1;'>{c}</td>" for c in cells
         ))

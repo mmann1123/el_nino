@@ -208,6 +208,14 @@ def fmt_mon_day(d) -> str:
     return f"{ts.day:02d} {month_abbr(ts.month)}"
 
 
+def fmt_day_range(start, end) -> str:
+    """'Jul 11–20' / '11–20 jul' / '11–20 juil.' — both days in the same month."""
+    a, b = _ts(start), _ts(end)
+    if current_lang() == "en":
+        return f"{month_abbr(a.month)} {a.day:02d}–{b.day:02d}"
+    return f"{a.day:02d}–{b.day:02d} {month_abbr(a.month)}"
+
+
 def fmt_mon_year(d) -> str:
     """'Aug 2026' / 'ago 2026' / 'août 2026'"""
     ts = _ts(d)
@@ -833,19 +841,22 @@ STRINGS: dict[str, dict[str, str]] = {
     "season_col_alert": {"en": "Alert", "es": "Alerta", "fr": "Alerte"},
     "season_col_confirmed": {"en": "Confirmed", "es": "Confirmado", "fr": "Confirmé"},
     "season_caption": {
-        "en": "Dates are when each signal first fired. **Alert**: the drought alert below "
+        "en": "Dates are when each signal first fired; for **Confirmed**, the 10-day period "
+              "(dekad) whose data completed it. **Alert**: the drought alert below "
               "(3-month rainfall and root-zone soil moisture both very dry during silking; "
               "priority {dept}s only). **Confirmed**: crop water use (evapotranspiration over "
               "cropland) far below normal for two dekads in a row, July–August — the crop is "
               "visibly stressed. A {dept} stays listed until the season ends.",
-        "es": "Las fechas indican cuándo se activó cada señal por primera vez. **Alerta**: la "
+        "es": "Las fechas indican cuándo se activó cada señal por primera vez; para "
+              "**Confirmado**, el período de 10 días (década) cuyos datos la completaron. **Alerta**: la "
               "alerta de sequía de abajo (lluvia de 3 meses y humedad del suelo en la zona de "
               "raíces muy secas durante la floración; solo {dept}s prioritarios). "
               "**Confirmado**: el uso de agua del cultivo (evapotranspiración sobre tierras de "
               "cultivo) muy por debajo de lo normal durante dos décadas seguidas, julio–agosto: "
               "el cultivo muestra estrés. Un {dept} permanece en la lista hasta que termina la "
               "temporada.",
-        "fr": "Les dates indiquent le premier déclenchement de chaque signal. **Alerte** : "
+        "fr": "Les dates indiquent le premier déclenchement de chaque signal ; pour "
+              "**Confirmé**, la période de 10 jours (décade) dont les données l'ont établi. **Alerte** : "
               "l'alerte sécheresse ci-dessous (pluie sur 3 mois et humidité du sol dans la zone "
               "racinaire très sèches pendant la floraison ; {dept}s prioritaires seulement). "
               "**Confirmé** : la consommation d'eau des cultures (évapotranspiration sur les "

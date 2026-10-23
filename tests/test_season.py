@@ -51,6 +51,17 @@ class TestFirstConfirmedDate:
         assert self.first(df) is None
 
 
+@pytest.mark.parametrize("d, end", [
+    (date(2026, 7, 1), date(2026, 7, 10)),
+    (date(2026, 7, 11), date(2026, 7, 20)),
+    (date(2026, 7, 21), date(2026, 7, 31)),
+    (date(2026, 2, 21), date(2026, 2, 28)),
+    (date(2028, 2, 21), date(2028, 2, 29)),
+])
+def test_dekad_end(d, end):
+    assert season.dekad_end(d) == end
+
+
 def _fire(dep, year, first):
     return triggers.FireRecord("t", "high", year, dep, first, -2.0, -1.0, first_date=first)
 
@@ -82,6 +93,14 @@ class TestSeasonRecord:
         assert by_dep["San Vicente"].alert_date is None
         # Ordered by first fire date.
         assert [e.departamento for e in rec.entries] == ["Morazan", "San Vicente"]
+
+    def test_confirmed_waits_for_its_dekad_to_end(self, es_season, monkeypatch):
+        monkeypatch.setattr(triggers, "evaluate_history", lambda: [])
+        _wapor("Morazan", _dekads(2026, [-1.5, -1.6]))  # completes on the Jul 11-20 dekad
+        assert season.season_record(date(2026, 7, 15)).entries == []
+        (entry,) = season.season_record(date(2026, 7, 20)).entries
+        assert entry.confirmed_date == date(2026, 7, 11)
+        assert entry.confirmed_end == date(2026, 7, 20)
 
     def test_department_stays_listed_after_conditions_recover(self, es_season, monkeypatch):
         monkeypatch.setattr(triggers, "evaluate_history", lambda: [])

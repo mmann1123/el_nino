@@ -16,6 +16,7 @@ show today's conditions. Between seasons the table recaps the last one.
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -29,7 +30,11 @@ from . import storage, triggers
 class SeasonEntry:
     departamento: str
     alert_date: date | None = None
-    confirmed_date: date | None = None
+    confirmed_date: date | None = None  # start of the dekad that completed the run
+
+    @property
+    def confirmed_end(self) -> date | None:
+        return dekad_end(self.confirmed_date) if self.confirmed_date else None
 
     @property
     def first_date(self) -> date:
@@ -44,6 +49,15 @@ class SeasonRecord:
     end: date
     active: bool        # False → the season has ended and this is a recap
     entries: list[SeasonEntry]
+
+
+def dekad_end(d: date) -> date:
+    """Last day of the dekad (1-10, 11-20, 21-end of month) that starts on or contains `d`."""
+    if d.day <= 10:
+        return d.replace(day=10)
+    if d.day <= 20:
+        return d.replace(day=20)
+    return d.replace(day=calendar.monthrange(d.year, d.month)[1])
 
 
 def _doy_to_date(year: int, doy: int) -> date:
@@ -64,7 +78,7 @@ def first_confirmed_date(
 ) -> date | None:
     """Date of the observation that completes the first run of `consecutive`
     observed values at or below `z_threshold` inside the window. A missing
-    value breaks the run."""
+    value breaks the run. For dekadal data this is the dekad's start date."""
     if df.empty or "value_anom_z" not in df.columns:
         return None
     d = df.copy()
@@ -123,7 +137,8 @@ def season_record(today: date | None = None) -> SeasonRecord | None:
     rule = config.CC.get("confirm_rule")
     if rule:
         for dep, fired in confirmed_fires(year, rule).items():
-            if fired <= today:
+            # Not confirmed until the dekad that completes the run is over.
+            if dekad_end(fired) <= today:
                 entries.setdefault(dep, SeasonEntry(dep)).confirmed_date = fired
 
     ordered = sorted(entries.values(), key=lambda e: (e.first_date, e.departamento))

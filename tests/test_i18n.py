@@ -94,6 +94,14 @@ class TestDates:
         i18n.set_offline_lang("fr")
         assert i18n.fmt_mon_day(d) == "15 juil."
 
+    def test_day_range_orders_by_language(self):
+        a, b = date(2026, 7, 11), date(2026, 7, 20)
+        assert i18n.fmt_day_range(a, b) == "Jul 11–20"
+        i18n.set_offline_lang("es")
+        assert i18n.fmt_day_range(a, b) == "11–20 jul"
+        i18n.set_offline_lang("fr")
+        assert i18n.fmt_day_range(a, b) == "11–20 juil."
+
     def test_mon_year_and_day_mon_year(self):
         d = date(2026, 8, 7)
         assert i18n.fmt_mon_year(d) == "Aug 2026"
