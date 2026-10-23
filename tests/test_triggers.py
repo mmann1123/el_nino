@@ -79,6 +79,17 @@ class TestEvaluateHistory:
         _write("smap", "Cabanas", "value_anom_z", [(date(2015, 7, 20), -1.0)])
         assert triggers.evaluate_history(TRIGGER) == []
 
+    def test_first_date_is_when_both_have_crossed(self, tmp_storage, priority_only_morazan):
+        # SPI crosses Jul 20, soil Jul 25, SPI bottoms out Aug 5: the alert
+        # first shows Jul 25 — not on the SPI minimum.
+        _seed_morazan(
+            spi_rows=[(date(2015, 7, 15), -1.0), (date(2015, 7, 20), -1.6), (date(2015, 8, 5), -2.5)],
+            rzsm_rows=[(date(2015, 7, 20), -0.2), (date(2015, 7, 25), -0.8)],
+        )
+        fire = triggers.evaluate_history(TRIGGER)[0]
+        assert fire.first_date == date(2015, 7, 25)
+        assert fire.fire_date == date(2015, 8, 5)
+
     def test_requires_both_indicators_present(self, tmp_storage, priority_only_morazan):
         # CHIRPS only, no SMAP overlap -> cannot evaluate -> no fire.
         _write("chirps", "Morazan", "spi_3", [(date(2015, 7, 20), -2.0)])

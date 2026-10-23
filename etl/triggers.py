@@ -125,6 +125,9 @@ class FireRecord:
     fire_date: date | None
     spi3_min: float
     rzsm_min_z: float
+    # The day both conditions had been met inside the window — when the alert
+    # would first have shown. `fire_date` is the day of the SPI-3 minimum.
+    first_date: date | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -135,6 +138,7 @@ class FireRecord:
             "fire_date": self.fire_date.isoformat() if self.fire_date else None,
             "spi3_min": float(self.spi3_min),
             "rzsm_min_z": float(self.rzsm_min_z),
+            "first_date": self.first_date.isoformat() if self.first_date else None,
         }
 
 
@@ -194,6 +198,8 @@ def evaluate_history(trigger: CalibratedTrigger | None = None) -> list[FireRecor
                 continue
             if spi_min < trigger.spi3_threshold and rzsm_min < trigger.rzsm_threshold:
                 spi_min_row = spi_window.loc[spi_window["value"].idxmin()]
+                first_spi = spi_window.loc[spi_window["value"] < trigger.spi3_threshold, "date"].min()
+                first_rzsm = rzsm_window.loc[rzsm_window["value"] < trigger.rzsm_threshold, "date"].min()
                 fires.append(FireRecord(
                     trigger_name=trigger.name,
                     severity=trigger.severity,
@@ -202,6 +208,7 @@ def evaluate_history(trigger: CalibratedTrigger | None = None) -> list[FireRecor
                     fire_date=pd.to_datetime(spi_min_row["date"]).date(),
                     spi3_min=float(spi_min),
                     rzsm_min_z=float(rzsm_min),
+                    first_date=max(first_spi, first_rzsm).date(),
                 ))
     return fires
 

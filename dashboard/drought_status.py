@@ -39,6 +39,9 @@ class DroughtCategory:
 
 
 PENDING = DroughtCategory("pending", "?", "#cfd8dc", text_color=DARK_INK, is_pending=True)
+# Shown instead of a reading once an indicator's latest observation is more
+# than 3 update cycles old — an old value classified as current misleads.
+STALE = DroughtCategory("stale", "–", "#b0bec5", text_color=DARK_INK)
 NORMAL = DroughtCategory("normal", "N", "#a5d6a7", text_color=DARK_INK)   # Material light green; reads as "OK / healthy"
 # Wet tiers mirror the dry tiers symmetrically.
 W1 = DroughtCategory("w1", "W1", "#90caf9", text_color=DARK_INK)

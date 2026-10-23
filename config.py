@@ -70,6 +70,16 @@ COUNTRIES: dict[str, dict] = {
         "crop_focus_caption": "maize-season indicators",
         # Calibration anchors — primera maize silking, mid-Jul to mid-Aug.
         "silking_window": (196, 227),
+        # The season the Overview's "This season" table covers: a departamento
+        # that fires stays listed from its first fire until the season ends.
+        "season": {"key": "primera", "doy": (110, 243)},  # Apr 20 → Aug 31
+        # "Confirmed" tier: cropland WAPOR ETa anomaly at or below z_threshold
+        # for `consecutive` dekads in a row inside window_doy (Jul 1 → Aug 31).
+        # Flagged exactly La Union, Morazan and San Miguel in 2018 and 2026 and
+        # nothing in 2019-2025 (experiments/primera_2026_eval.py data, the
+        # dashboard's own anomaly). Needs the cropland-weighted WAPOR backfill.
+        "confirm_rule": {"indicator": "wapor", "window_doy": (182, 243),
+                         "z_threshold": -1.25, "consecutive": 2},
         # year → (severity, note). Drawn from el_nino_agricultural_risks.md.
         "labeled_events": {
             1997: ("severe-moderate", "Super El Niño; FAO 'considerably below-average' 2nd-season maize"),
@@ -105,6 +115,10 @@ COUNTRIES: dict[str, dict] = {
         # (~Jul-Aug), spanning the Hispaniola canícula that El Niño intensifies.
         # Curtis & Gamble 2007 place midsummer-drought onset in early June.
         "silking_window": (152, 227),  # Jun 1 → Aug 15
+        "season": {"key": "printemps_ete", "doy": (60, 243)},  # Mar 1 → Aug 31
+        # No calibrated "Confirmed" rule for Haiti yet — the table shows the
+        # Alert tier only.
+        "confirm_rule": None,
         # year → (severity, note). Doc-anchored events from
         # el_nino_agricultural_risks.md plus moderate analog years (NOAA ONI).
         # 1997/2015/2023 are explicitly documented as Caribbean drought years.

@@ -343,16 +343,22 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "ind_wapor_help": {
         "en": "**Actual evapotranspiration (ETa)** — water actually leaving the soil "
-              "and crop canopy. Low ETa during the growing season confirms crop stress. "
-              "Lags rainfall/soil moisture by ~10 days. Source: FAO WAPOR v3.",
+              "and crop canopy, averaged over **cropland only** so forest and other "
+              "vegetation don't hide crop stress. Low ETa during the growing season "
+              "confirms crop stress. Lags rainfall/soil moisture by ~10 days. "
+              "Source: FAO WAPOR v3; cropland from ESA WorldCover.",
         "es": "**Evapotranspiración real (ETa)** — agua que realmente sale del suelo y del "
-              "dosel del cultivo. Una ETa baja durante la temporada de crecimiento confirma "
-              "estrés en el cultivo. Se retrasa ~10 días respecto a la lluvia/humedad del "
-              "suelo. Fuente: FAO WAPOR v3.",
+              "dosel del cultivo, promediada **solo sobre tierras de cultivo** para que el "
+              "bosque y otra vegetación no oculten el estrés del cultivo. Una ETa baja durante "
+              "la temporada de crecimiento confirma estrés en el cultivo. Se retrasa ~10 días "
+              "respecto a la lluvia/humedad del suelo. Fuente: FAO WAPOR v3; tierras de "
+              "cultivo de ESA WorldCover.",
         "fr": "**Évapotranspiration réelle (ETa)** — eau qui quitte effectivement le sol et "
-              "le couvert végétal. Une ETa faible pendant la saison de croissance confirme "
-              "le stress des cultures. Décalage d'environ 10 jours par rapport à la "
-              "pluie/l'humidité du sol. Source : FAO WAPOR v3.",
+              "le couvert végétal, moyennée **sur les terres cultivées uniquement** pour que la "
+              "forêt et les autres végétations ne masquent pas le stress des cultures. Une ETa "
+              "faible pendant la saison de croissance confirme le stress des cultures. Décalage "
+              "d'environ 10 jours par rapport à la pluie/l'humidité du sol. Source : FAO WAPOR "
+              "v3 ; terres cultivées d'ESA WorldCover.",
     },
     "ind_imerg_help": {
         "en": "**Daily rainfall** at finer temporal/spatial resolution than CHIRPS. "
@@ -686,6 +692,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "es": "Aún no hay datos suficientes para clasificar. La línea base histórica o las observaciones recientes todavía se están calculando.",
         "fr": "Pas encore assez de données pour classer. La référence historique ou les observations récentes sont encore en cours de calcul.",
     },
+    "cat_stale_label": {"en": "No recent data", "es": "Sin datos recientes", "fr": "Pas de données récentes"},
+    "cat_stale_desc": {
+        "en": "The latest observation is more than three update cycles old, so no current reading is shown.",
+        "es": "La última observación tiene más de tres ciclos de actualización de antigüedad, por lo que no se muestra una lectura actual.",
+        "fr": "La dernière observation date de plus de trois cycles de mise à jour ; aucune lecture actuelle n'est affichée.",
+    },
     "cat_normal_label": {"en": "Normal", "es": "Normal", "fr": "Normal"},
     "cat_normal_desc": {
         "en": "Conditions are within the typical range for this time of year.",
@@ -795,6 +807,64 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Les seuils d'alerte sécheresse ne sont pas encore calibrés pour ce pays. "
               "Lancez `COUNTRY=<key> python -m el_nino.experiments.trigger_calibration` "
               "et intégrez la configuration recommandée dans `etl/triggers.py`.",
+    },
+    # ---- "This season" table (dashboard/season_view.py) ----
+    "season_primera": {"en": "Primera", "es": "Primera", "fr": "Primera"},
+    "season_printemps_ete": {
+        "en": "Spring–summer season",
+        "es": "Temporada de primavera–verano",
+        "fr": "Saison printemps–été",
+    },
+    "season_header_active": {
+        "en": "**This season — {season} {year}** ({span})",
+        "es": "**Esta temporada — {season} {year}** ({span})",
+        "fr": "**Cette saison — {season} {year}** ({span})",
+    },
+    "season_header_ended": {
+        "en": "**Last season — {season} {year}** ({span}, ended; shown until the next season starts)",
+        "es": "**Temporada pasada — {season} {year}** ({span}, terminada; se muestra hasta que empiece la próxima temporada)",
+        "fr": "**Saison passée — {season} {year}** ({span}, terminée ; affichée jusqu'au début de la saison suivante)",
+    },
+    "season_none": {
+        "en": "None of the {depts} has triggered this season.",
+        "es": "Ninguno de los {depts} ha activado una señal esta temporada.",
+        "fr": "Aucun des {depts} n'a déclenché de signal cette saison.",
+    },
+    "season_col_alert": {"en": "Alert", "es": "Alerta", "fr": "Alerte"},
+    "season_col_confirmed": {"en": "Confirmed", "es": "Confirmado", "fr": "Confirmé"},
+    "season_caption": {
+        "en": "Dates are when each signal first fired. **Alert**: the drought alert below "
+              "(3-month rainfall and root-zone soil moisture both very dry during silking; "
+              "priority {dept}s only). **Confirmed**: crop water use (evapotranspiration over "
+              "cropland) far below normal for two dekads in a row, July–August — the crop is "
+              "visibly stressed. A {dept} stays listed until the season ends.",
+        "es": "Las fechas indican cuándo se activó cada señal por primera vez. **Alerta**: la "
+              "alerta de sequía de abajo (lluvia de 3 meses y humedad del suelo en la zona de "
+              "raíces muy secas durante la floración; solo {dept}s prioritarios). "
+              "**Confirmado**: el uso de agua del cultivo (evapotranspiración sobre tierras de "
+              "cultivo) muy por debajo de lo normal durante dos décadas seguidas, julio–agosto: "
+              "el cultivo muestra estrés. Un {dept} permanece en la lista hasta que termina la "
+              "temporada.",
+        "fr": "Les dates indiquent le premier déclenchement de chaque signal. **Alerte** : "
+              "l'alerte sécheresse ci-dessous (pluie sur 3 mois et humidité du sol dans la zone "
+              "racinaire très sèches pendant la floraison ; {dept}s prioritaires seulement). "
+              "**Confirmé** : la consommation d'eau des cultures (évapotranspiration sur les "
+              "terres cultivées) très inférieure à la normale deux décades de suite, "
+              "juillet–août : la culture est en stress. Un {dept} reste listé jusqu'à la fin de "
+              "la saison.",
+    },
+    "season_caption_alert_only": {
+        "en": "Dates are when the drought alert below first fired (3-month rainfall and "
+              "root-zone soil moisture both very dry during silking; priority {dept}s only). "
+              "A {dept} stays listed until the season ends.",
+        "es": "Las fechas indican cuándo se activó por primera vez la alerta de sequía de abajo "
+              "(lluvia de 3 meses y humedad del suelo en la zona de raíces muy secas durante la "
+              "floración; solo {dept}s prioritarios). Un {dept} permanece en la lista hasta que "
+              "termina la temporada.",
+        "fr": "Les dates indiquent le premier déclenchement de l'alerte sécheresse ci-dessous "
+              "(pluie sur 3 mois et humidité du sol dans la zone racinaire très sèches pendant "
+              "la floraison ; {dept}s prioritaires seulement). Un {dept} reste listé jusqu'à la "
+              "fin de la saison.",
     },
     "alert_header": {"en": "### Drought alert", "es": "### Alerta de sequía", "fr": "### Alerte sécheresse"},
     "alert_pill_alert": {

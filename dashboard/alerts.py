@@ -21,7 +21,7 @@ import streamlit as st
 
 from .. import config
 from ..etl import storage, triggers
-from . import i18n
+from . import freshness, i18n
 
 
 # ---------- color helpers ----------
@@ -66,7 +66,14 @@ def _country_mean_latest(indicator: str, value_col: str) -> float | None:
     return float(grouped.iloc[-1])
 
 
+def _stale_reading(label: str, threshold_text: str) -> CurrentReading:
+    return CurrentReading(label, i18n.t("cat_stale_label"), "—", NEUTRAL, threshold_text)
+
+
 def _spi3_reading(threshold: float) -> CurrentReading:
+    if freshness.is_stale("chirps", config.today()):
+        return _stale_reading(i18n.t("reading_rain_label"),
+                              i18n.t("reading_activates_below", thr=f"{threshold:+.1f}"))
     v = _country_mean_latest("chirps", "spi_3")
     return _make_reading(
         label=i18n.t("reading_rain_label"),
@@ -83,6 +90,9 @@ def _spi3_reading(threshold: float) -> CurrentReading:
 
 
 def _rzsm_reading(threshold: float) -> CurrentReading:
+    if freshness.is_stale("smap", config.today()):
+        return _stale_reading(i18n.t("reading_soil_label"),
+                              i18n.t("reading_activates_below", thr=f"{threshold:+.1f}σ"))
     v = _country_mean_latest("smap", "value_anom_z")
     return _make_reading(
         label=i18n.t("reading_soil_label"),
@@ -205,7 +215,7 @@ def banner() -> None:
                         dep=f["departamento"],
                         spi=f"{f['spi3_min']:.2f}",
                         rzsm=f"{f['rzsm_min_z']:.2f}",
-                        date=f["fire_date"],
+                        date=f.get("first_date") or f["fire_date"],
                     )
                 )
 

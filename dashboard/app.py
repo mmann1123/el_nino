@@ -33,6 +33,7 @@ from el_nino.dashboard import (
     freshness,
     i18n,
     map as map_view,
+    season_view,
     site_footer,
     status as status_view,
 )  # noqa: E402
@@ -322,6 +323,7 @@ with tabs[0]:
             drought_status.D2,
             drought_status.D3,
             drought_status.D4,
+            drought_status.STALE,
         ]:
             st.markdown(
                 f"<div style='display:flex;align-items:center;margin:2px 0;'>"
@@ -330,6 +332,10 @@ with tabs[0]:
                 f"<span style='font-size:0.85em;'>{cat.label}</span></div>",
                 unsafe_allow_html=True,
             )
+
+    # This season's departments that fired, kept until the season ends — the
+    # "where has it gone wrong so far" answer sits directly under the map.
+    season_view.render(today_)
 
     st.divider()
 
@@ -435,7 +441,10 @@ with tabs[0]:
                 ind_cls.status_window_days,
                 today_,
             )
-            cat = drought_status.classify(latest_z)
+            if freshness.is_stale(ind_name, today_):
+                cat = drought_status.STALE
+            else:
+                cat = drought_status.classify(latest_z)
             st.markdown(
                 f"<span style='background-color:{cat.color};color:{cat.text_color};"
                 "padding:4px 12px;border-radius:6px;font-weight:600;'>"
@@ -492,7 +501,8 @@ with tabs[1]:
             indicator_cls.status_window_days,
             today_,
         )
-        cat = drought_status.classify(latest_z)
+        stale = freshness.is_stale(indicator_name, today_)
+        cat = drought_status.STALE if stale else drought_status.classify(latest_z)
         st.markdown(f"### {i18n.t('current_status')}")
         c1, c2 = st.columns([1, 2])
         with c1:
@@ -507,7 +517,8 @@ with tabs[1]:
             # under the badge instead of in a separate caption above the chart.
             st.caption(freshness.indicator_badge(indicator_name, today_))
         with c2:
-            st.write(drought_status.plain_language(latest_z))
+            if not stale:
+                st.write(drought_status.plain_language(latest_z))
             st.caption(cat.description)
 
         with st.expander(i18n.t("tech_details")):
