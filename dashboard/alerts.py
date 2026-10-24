@@ -145,7 +145,7 @@ def banner() -> None:
 
     # ---- status pill ----
     n_fired = len({f['departamento'] for f in triggered_this_year})
-    dep_word = config.CC["dept_term_plural"] if n_fired != 1 else config.CC["dept_term"]
+    dep_word = i18n.dept_term(plural=True) if n_fired != 1 else i18n.dept_term()
     if triggered_this_year:
         pill_bg, pill_label, pill_sub = RED, i18n.t("alert_pill_alert"), \
             i18n.t("alert_pill_alert_sub", n=n_fired, dep_word=dep_word)
@@ -205,7 +205,7 @@ def banner() -> None:
     # ---- triggered-this-year details ----
     if triggered_this_year:
         with st.expander(
-            i18n.t("alert_show_triggered", depts=config.CC["dept_term_plural"]),
+            i18n.t("alert_show_triggered", depts=i18n.dept_term(plural=True)),
             expanded=True,
         ):
             for f in sorted(triggered_this_year, key=lambda r: r["departamento"]):
@@ -256,7 +256,7 @@ def banner() -> None:
                         fp_hi=f"{s.fp_per_decade_ci[1]:.1f}",
                         anchor=severe_anchor,
                         country=config.CC["display_name"],
-                        dept=config.CC["dept_term"],
+                        dept=i18n.dept_term(),
                         priority=i18n.priority_label().lower(),
                         names=config.CC["priority_display_names"],
                         n_years=s.n_years,
@@ -276,7 +276,7 @@ def banner() -> None:
                 )
                 for y in sorted(by_year, reverse=True):
                     deps = sorted(by_year[y])
-                    dep_word = config.CC["dept_term_plural"] if len(deps) != 1 else config.CC["dept_term"]
+                    dep_word = i18n.dept_term(plural=True) if len(deps) != 1 else i18n.dept_term()
                     st.markdown(
                         i18n.t(
                             "alert_past_row",

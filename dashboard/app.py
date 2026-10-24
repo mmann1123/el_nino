@@ -186,7 +186,7 @@ def _on_dep_dropdown_changed() -> None:
 # widget or by a click on the country map below).
 default_idx = deps_available.index(st.session_state.get("dep_choice", default_dep))
 departamento = st.sidebar.selectbox(
-    config.CC["dept_term"].capitalize(),
+    i18n.dept_term().capitalize(),
     deps_available,
     index=default_idx,
     format_func=lambda d: i18n.dep_display(d, data.ALL),
@@ -194,7 +194,7 @@ departamento = st.sidebar.selectbox(
     help=i18n.t(
         "dep_select_help",
         country=config.CC["display_name"],
-        dept=config.CC["dept_term"],
+        dept=i18n.dept_term(),
         all=i18n.t("all_country_mean"),
         priority=i18n.priority_label(),
         names=config.CC["priority_display_names"],
@@ -260,10 +260,10 @@ with tabs[0]:
                 i18n.t(
                     "map_title",
                     indicator=INDICATOR_LABELS[indicator_name].split("(")[0].strip(),
-                    depts=config.CC["dept_term_plural"],
+                    depts=i18n.dept_term(plural=True),
                 )
                 + "  \n<span style='font-size:0.85em;color:#546e7a;'>"
-                + i18n.t("map_click_hint", dept=config.CC["dept_term"])
+                + i18n.t("map_click_hint", dept=i18n.dept_term())
                 + "</span>",
                 unsafe_allow_html=True,
             )
@@ -284,7 +284,7 @@ with tabs[0]:
                 if st.button(
                     i18n.t("select_all_btn"),
                     key="select_all_btn",
-                    help=i18n.t("select_all_help", depts=config.CC["dept_term_plural"]),
+                    help=i18n.t("select_all_help", depts=i18n.dept_term(plural=True)),
                     width="stretch",
                 ):
                     if st.session_state.get("dep_choice") != data.ALL:
@@ -470,7 +470,7 @@ with tabs[1]:
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
-        st.info(i18n.t("detail_no_data", dept=config.CC["dept_term"]))
+        st.info(i18n.t("detail_no_data", dept=i18n.dept_term()))
     else:
         clim = data.load_climatology(indicator_name, departamento, primary)
         window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)

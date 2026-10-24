@@ -64,6 +64,14 @@ def current_lang() -> str:
     return _offline_lang
 
 
+def dept_term(plural: bool = False) -> str:
+    """The word for an ADM1 unit: the country's own ("departamento",
+    "département") in its language, "department" in English."""
+    if current_lang() == "en":
+        return "departments" if plural else "department"
+    return config.CC["dept_term_plural" if plural else "dept_term"]
+
+
 def set_offline_lang(lang: str) -> None:
     """Force the language when no Streamlit session exists (tests)."""
     global _offline_lang
@@ -841,28 +849,26 @@ STRINGS: dict[str, dict[str, str]] = {
     "season_col_alert": {"en": "Alert", "es": "Alerta", "fr": "Alerte"},
     "season_col_confirmed": {"en": "Confirmed", "es": "Confirmado", "fr": "Confirmé"},
     "season_caption": {
-        "en": "Dates are when each signal first fired; for **Confirmed**, the 10-day period "
-              "(dekad) whose data completed it. **Alert**: the drought alert below "
-              "(3-month rainfall and root-zone soil moisture both very dry during silking; "
-              "priority {dept}s only). **Confirmed**: crop water use (evapotranspiration over "
-              "cropland) far below normal for two dekads in a row, July–August — the crop is "
-              "visibly stressed. A {dept} stays listed until the season ends.",
-        "es": "Las fechas indican cuándo se activó cada señal por primera vez; para "
-              "**Confirmado**, el período de 10 días (década) cuyos datos la completaron. **Alerta**: la "
-              "alerta de sequía de abajo (lluvia de 3 meses y humedad del suelo en la zona de "
-              "raíces muy secas durante la floración; solo {dept}s prioritarios). "
-              "**Confirmado**: el uso de agua del cultivo (evapotranspiración sobre tierras de "
-              "cultivo) muy por debajo de lo normal durante dos décadas seguidas, julio–agosto: "
-              "el cultivo muestra estrés. Un {dept} permanece en la lista hasta que termina la "
-              "temporada.",
-        "fr": "Les dates indiquent le premier déclenchement de chaque signal ; pour "
-              "**Confirmé**, la période de 10 jours (décade) dont les données l'ont établi. **Alerte** : "
-              "l'alerte sécheresse ci-dessous (pluie sur 3 mois et humidité du sol dans la zone "
-              "racinaire très sèches pendant la floraison ; {dept}s prioritaires seulement). "
-              "**Confirmé** : la consommation d'eau des cultures (évapotranspiration sur les "
-              "terres cultivées) très inférieure à la normale deux décades de suite, "
-              "juillet–août : la culture est en stress. Un {dept} reste listé jusqu'à la fin de "
-              "la saison.",
+        "en": "**Alert** — the date the drought alert below first fired: 3-month rainfall and "
+              "root-zone soil moisture both very dry during silking (priority {depts} only). "
+              "**Confirmed** — crop water use (evapotranspiration over cropland) far below normal "
+              "for two dekads (10-day periods) in a row, July–August; the crop is visibly "
+              "stressed. The date shown is the second of those dekads. A {dept} stays listed "
+              "until the season ends.",
+        "es": "**Alerta**: la fecha en que se activó por primera vez la alerta de sequía de abajo: "
+              "lluvia de 3 meses y humedad del suelo en la zona de raíces muy secas durante la "
+              "floración (solo {depts} prioritarios). **Confirmado**: uso de agua del cultivo "
+              "(evapotranspiración sobre tierras de cultivo) muy por debajo de lo normal durante "
+              "dos décadas (períodos de 10 días) seguidas, julio–agosto; el cultivo muestra "
+              "estrés. La fecha indicada es la segunda de esas décadas. Un {dept} permanece en la "
+              "lista hasta que termina la temporada.",
+        "fr": "**Alerte** : la date du premier déclenchement de l'alerte sécheresse ci-dessous : "
+              "pluie sur 3 mois et humidité du sol dans la zone racinaire très sèches pendant la "
+              "floraison ({depts} prioritaires seulement). **Confirmé** : consommation d'eau des "
+              "cultures (évapotranspiration sur les terres cultivées) très inférieure à la normale "
+              "deux décades (périodes de 10 jours) de suite, juillet–août ; la culture est en "
+              "stress. La date affichée est la seconde de ces décades. Un {dept} reste listé "
+              "jusqu'à la fin de la saison.",
     },
     "season_caption_alert_only": {
         "en": "Dates are when the drought alert below first fired (3-month rainfall and "

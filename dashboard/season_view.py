@@ -34,7 +34,7 @@ def _chip(label: str | None, color: str) -> str:
 
 def _table(rec: season.SeasonRecord) -> str:
     has_confirm = bool(config.CC.get("confirm_rule"))
-    head = [config.CC["dept_term"].capitalize(), i18n.t("season_col_alert")]
+    head = [i18n.dept_term().capitalize(), i18n.t("season_col_alert")]
     if has_confirm:
         head.append(i18n.t("season_col_confirmed"))
     th = "".join(
@@ -64,9 +64,9 @@ def _body(rec: season.SeasonRecord) -> None:
     if rec.entries:
         st.markdown(_table(rec), unsafe_allow_html=True)
     else:
-        st.markdown(i18n.t("season_none", depts=config.CC["dept_term_plural"]))
+        st.markdown(i18n.t("season_none", depts=i18n.dept_term(plural=True)))
     key = "season_caption" if config.CC.get("confirm_rule") else "season_caption_alert_only"
-    st.caption(i18n.t(key, dept=config.CC["dept_term"]))
+    st.caption(i18n.t(key, dept=i18n.dept_term(), depts=i18n.dept_term(plural=True)))
 
 
 def render(today_: date) -> None:

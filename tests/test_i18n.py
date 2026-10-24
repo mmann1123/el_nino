@@ -79,6 +79,15 @@ class TestLookup:
         assert i18n.dep_display("ALL", "ALL") == "Todos (promedio nacional)"
         assert i18n.dep_display("San Miguel", "ALL") == "San Miguel"
 
+    def test_dept_term_is_english_in_english(self, monkeypatch):
+        monkeypatch.setitem(config.CC, "dept_term", "departamento")
+        monkeypatch.setitem(config.CC, "dept_term_plural", "departamentos")
+        assert i18n.dept_term() == "department"
+        assert i18n.dept_term(plural=True) == "departments"
+        i18n.set_offline_lang("es")
+        assert i18n.dept_term() == "departamento"
+        assert i18n.dept_term(plural=True) == "departamentos"
+
     def test_phase_label(self):
         i18n.set_offline_lang("fr")
         assert i18n.phase_label("Neutral") == "Neutre"

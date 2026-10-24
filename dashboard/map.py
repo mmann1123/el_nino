@@ -147,7 +147,7 @@ def departamento_status_figure(
         },
         labels={
             "status_label": i18n.t("map_status"),
-            "departamento": config.CC["dept_term"].capitalize(),
+            "departamento": i18n.dept_term().capitalize(),
             "z_display": i18n.t("map_anomaly"),
         },
     )
