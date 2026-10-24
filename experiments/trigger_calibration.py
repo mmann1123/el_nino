@@ -1,6 +1,6 @@
 """Trigger calibration against labeled historical El Niño impact events.
 
-Country-aware: priority departments, silking window, and labeled events are
+Country-aware: departments, silking window, and labeled events are
 read from `config.CC` so the same sweep runs for ES (default) and HT
 (COUNTRY=haiti). Run with:
 
@@ -13,9 +13,10 @@ Inputs:
   - ETa anomaly (WAPOR, 2018+) — short baseline, confirmation
 
 Method:
-  Aggregate the priority departments by mean. For each candidate threshold +
+  Evaluate every department in the country. For each candidate threshold +
   window, ask: did SPI-3 (or the AND of SPI-3 + RZSM) cross below the
-  threshold during the silking window? Score precision / recall / lead-time /
+  threshold during the silking window in any department? The current year is
+  left out — it has no label yet. Score precision / recall / lead-time /
   false-positive rate against the labeled events.
 
 Output:
@@ -39,7 +40,10 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from el_nino import config  # noqa: E402
 
-PRIORITY_DEPARTMENTS = config.PRIORITY_DEPARTMENTS
+# Every department, not just the priority ones: the labels are national
+# years, and restricting to the eastern dry corridor missed the 2018 and 2023
+# ES droughts, which hit Cabanas and the west.
+DEPARTMENTS = sorted(config.country_departments())
 SILKING_DOY_START, SILKING_DOY_END = config.CC["silking_window"]
 DEKAD_FOLLOWING = 10      # days after window-end to look for ETa confirmation
 
@@ -59,15 +63,15 @@ class TriggerConfig:
 
 
 def load_indicator(indicator: str, value_col: str) -> pd.DataFrame:
-    """Load per-department time series for the priority departments.
+    """Load per-department time series for every department.
 
     Returns a long DataFrame with columns: date, year, doy, departamento, value.
     Per-dep granularity preserves regional heterogeneity — the evaluators below
-    fire per (year, dep) and aggregate to a binary 'any priority dep fired this
+    fire per (year, dep) and aggregate to a binary 'any dep fired this
     year' for binary scoring against the labeled events.
     """
     frames = []
-    for dep in PRIORITY_DEPARTMENTS:
+    for dep in DEPARTMENTS:
         f = config.RAW_DIR / indicator / f"{dep.replace(' ', '_')}.parquet"
         if not f.exists():
             continue
@@ -78,6 +82,7 @@ def load_indicator(indicator: str, value_col: str) -> pd.DataFrame:
         df["date"] = pd.to_datetime(df["date"])
         df["year"] = df["date"].dt.year
         df["doy"] = df["date"].dt.dayofyear
+        df = df[df["year"] < config.today().year]  # unlabeled until the year is over
         df["departamento"] = dep
         frames.append(df[["date", "year", "doy", "departamento", value_col]]
                       .rename(columns={value_col: "value"}))
@@ -106,7 +111,7 @@ def _per_dep_min(df: pd.DataFrame, year: int, window: tuple[int, int]) -> pd.Ser
 def evaluate_spi_only(spi: pd.DataFrame, cfg: TriggerConfig) -> dict:
     """Single-indicator (SPI-3) trigger.
 
-    Per-department evaluation: a year fires if ANY priority department's
+    Per-department evaluation: a year fires if ANY department's
     SPI-3 minimum during the window falls below the threshold.
     """
     years = sorted(years_available(spi, cfg.window))
@@ -129,7 +134,7 @@ def evaluate_spi_only(spi: pd.DataFrame, cfg: TriggerConfig) -> dict:
 def evaluate_combo(spi: pd.DataFrame, rzsm: pd.DataFrame, eta: pd.DataFrame, cfg: TriggerConfig) -> dict:
     """Combined SPI + RZSM (± ETa) trigger.
 
-    Per-department evaluation: a year fires if ANY priority department meets
+    Per-department evaluation: a year fires if ANY department meets
     ALL required conditions (SPI < thr) ∧ (RZSM < thr) [∧ (ETa < thr)] during
     the window. Departments without coverage for a required indicator are
     excluded from the fire test for that year.
@@ -269,7 +274,7 @@ def sweep_spi_only(spi: pd.DataFrame) -> list[dict]:
 
 def sweep_combo(spi: pd.DataFrame, rzsm: pd.DataFrame, eta: pd.DataFrame) -> list[dict]:
     spi_thrs = [-1.0, -1.3, -1.5]
-    rzsm_thrs = [-0.5, -1.0]
+    rzsm_thrs = [-0.5, -1.0, -1.5]
     window = (SILKING_DOY_START, SILKING_DOY_END)
     results = []
     for s in spi_thrs:
@@ -305,8 +310,8 @@ def render_report(spi_results: list[dict], combo_results: list[dict]) -> str:
     lines.append("Generated from `el_nino/experiments/trigger_calibration.py`.")
     lines.append("")
     lines.append(f"**Country:** {config.CC['display_name']} ({config.CC['short_code']}).")
-    lines.append(f"**Region:** {config.CC['priority_label']} "
-                 f"(mean of {config.CC['priority_display_names']}).")
+    lines.append(f"**Region:** all {len(DEPARTMENTS)} {config.CC['dept_term_plural']}; "
+                 "a year fires if any one of them meets the conditions.")
     lines.append(f"**Silking window:** DOY {SILKING_DOY_START}-{SILKING_DOY_END}.")
     lines.append("**Labels:** drawn from `el_nino/el_nino_agricultural_risks.md` via `config.CC['labeled_events']`.")
     lines.append("")

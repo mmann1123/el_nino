@@ -3,8 +3,8 @@
 Two tiers, each dated by the first day it fired:
 
   Alert      the calibrated trigger (etl/triggers.py): SPI-3 and SMAP root-zone
-             both past their thresholds in the silking window. Priority
-             departments only, as calibrated.
+             both past their thresholds in the silking window, in any
+             department, as calibrated.
   Confirmed  crop water use well below normal: the indicator named in
              ``config.CC['confirm_rule']`` (cropland WAPOR ETa) at or below its
              z threshold for N observations in a row inside the rule's window.

@@ -66,7 +66,7 @@ def _body(rec: season.SeasonRecord) -> None:
     else:
         st.markdown(i18n.t("season_none", depts=i18n.dept_term(plural=True)))
     key = "season_caption" if config.CC.get("confirm_rule") else "season_caption_alert_only"
-    st.caption(i18n.t(key, dept=i18n.dept_term(), depts=i18n.dept_term(plural=True)))
+    st.caption(i18n.t(key, dept=i18n.dept_term()))
 
 
 def render(today_: date) -> None:

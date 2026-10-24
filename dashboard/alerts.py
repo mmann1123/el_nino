@@ -257,8 +257,6 @@ def banner() -> None:
                         anchor=severe_anchor,
                         country=config.CC["display_name"],
                         dept=i18n.dept_term(),
-                        priority=i18n.priority_label().lower(),
-                        names=config.CC["priority_display_names"],
                         n_years=s.n_years,
                         country_key=config.COUNTRY,
                     )

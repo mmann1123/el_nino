@@ -850,21 +850,21 @@ STRINGS: dict[str, dict[str, str]] = {
     "season_col_confirmed": {"en": "Confirmed", "es": "Confirmado", "fr": "Confirmé"},
     "season_caption": {
         "en": "**Alert** — the date the drought alert below first fired: 3-month rainfall and "
-              "root-zone soil moisture both very dry during silking (priority {depts} only). "
+              "root-zone soil moisture both very dry during silking, in any {dept}. "
               "**Confirmed** — crop water use (evapotranspiration over cropland) far below normal "
               "for two dekads (10-day periods) in a row, July–August; the crop is visibly "
               "stressed. The date shown is the second of those dekads. A {dept} stays listed "
               "until the season ends.",
         "es": "**Alerta**: la fecha en que se activó por primera vez la alerta de sequía de abajo: "
               "lluvia de 3 meses y humedad del suelo en la zona de raíces muy secas durante la "
-              "floración (solo {depts} prioritarios). **Confirmado**: uso de agua del cultivo "
+              "floración, en cualquier {dept}. **Confirmado**: uso de agua del cultivo "
               "(evapotranspiración sobre tierras de cultivo) muy por debajo de lo normal durante "
               "dos décadas (períodos de 10 días) seguidas, julio–agosto; el cultivo muestra "
               "estrés. La fecha indicada es la segunda de esas décadas. Un {dept} permanece en la "
               "lista hasta que termina la temporada.",
         "fr": "**Alerte** : la date du premier déclenchement de l'alerte sécheresse ci-dessous : "
               "pluie sur 3 mois et humidité du sol dans la zone racinaire très sèches pendant la "
-              "floraison ({depts} prioritaires seulement). **Confirmé** : consommation d'eau des "
+              "floraison, dans n'importe quel {dept}. **Confirmé** : consommation d'eau des "
               "cultures (évapotranspiration sur les terres cultivées) très inférieure à la normale "
               "deux décades (périodes de 10 jours) de suite, juillet–août ; la culture est en "
               "stress. La date affichée est la seconde de ces décades. Un {dept} reste listé "
@@ -872,15 +872,15 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "season_caption_alert_only": {
         "en": "Dates are when the drought alert below first fired (3-month rainfall and "
-              "root-zone soil moisture both very dry during silking; priority {dept}s only). "
+              "root-zone soil moisture both very dry during silking, in any {dept}). "
               "A {dept} stays listed until the season ends.",
         "es": "Las fechas indican cuándo se activó por primera vez la alerta de sequía de abajo "
               "(lluvia de 3 meses y humedad del suelo en la zona de raíces muy secas durante la "
-              "floración; solo {dept}s prioritarios). Un {dept} permanece en la lista hasta que "
+              "floración, en cualquier {dept}). Un {dept} permanece en la lista hasta que "
               "termina la temporada.",
         "fr": "Les dates indiquent le premier déclenchement de l'alerte sécheresse ci-dessous "
               "(pluie sur 3 mois et humidité du sol dans la zone racinaire très sèches pendant "
-              "la floraison ; {dept}s prioritaires seulement). Un {dept} reste listé jusqu'à la "
+              "la floraison, dans n'importe quel {dept}). Un {dept} reste listé jusqu'à la "
               "fin de la saison.",
     },
     "alert_header": {"en": "### Drought alert", "es": "### Alerta de sequía", "fr": "### Alerte sécheresse"},
@@ -931,20 +931,20 @@ STRINGS: dict[str, dict[str, str]] = {
               "the same time during the critical growth window "
               "(**{start} to {end}**). This is when rainfed crops in {country} are "
               "most vulnerable to drought — water stress during this window translates "
-              "directly into yield loss in the {priority} ({names}).",
+              "directly into yield loss, above all in the {priority} ({names}).",
         "es": "**Qué activa esta alerta.** Cuando la lluvia ha sido **muy escasa durante "
               "los últimos 3 meses** *y* **la humedad del suelo está por debajo de lo normal**, "
               "ambas al mismo tiempo durante la ventana crítica de crecimiento "
               "(**{start} al {end}**). Es cuando los cultivos de secano en {country} son "
               "más vulnerables a la sequía — el estrés hídrico en esta ventana se traduce "
-              "directamente en pérdida de rendimiento en el {priority} ({names}).",
+              "directamente en pérdida de rendimiento, sobre todo en el {priority} ({names}).",
         "fr": "**Ce qui déclenche cette alerte.** Lorsque la pluie a été **très faible pendant "
               "les 3 derniers mois** *et* que **l'humidité du sol est sous la normale**, "
               "en même temps, pendant la fenêtre critique de croissance "
               "(**du {start} au {end}**). C'est à ce moment que les cultures pluviales de "
               "{country} sont les plus vulnérables à la sécheresse — le stress hydrique pendant "
-              "cette fenêtre se traduit directement par des pertes de rendement dans les "
-              "{priority} ({names}).",
+              "cette fenêtre se traduit directement par des pertes de rendement, surtout dans "
+              "les {priority} ({names}).",
     },
     "alert_show_triggered": {
         "en": "Show triggered {depts}",
@@ -982,8 +982,8 @@ STRINGS: dict[str, dict[str, str]] = {
 
 Thresholds were chosen by checking which would have flagged the documented
 El Niño drought years for {country} {anchor} without firing in normal years.
-The fire test runs **per {dept}** — if any one of the {priority} ({names})
-crosses both thresholds, the alert is raised. With only {n_years} years of
+The fire test runs **per {dept}** — if any {dept} in {country} crosses both
+thresholds, the alert is raised. With only {n_years} years of
 soil-moisture data, the margin of error is still wide. Re-run
 `COUNTRY={country_key} python -m el_nino.experiments.trigger_calibration`
 annually as more data accumulates.
@@ -998,8 +998,8 @@ annually as more data accumulates.
 
 Los umbrales se eligieron verificando cuáles habrían señalado los años de
 sequía por El Niño documentados para {country} {anchor} sin activarse en años
-normales. La prueba se ejecuta **por {dept}** — si cualquiera de los del
-{priority} ({names}) cruza ambos umbrales, se emite la alerta. Con solo
+normales. La prueba se ejecuta **por {dept}** — si cualquier {dept} de {country}
+cruza ambos umbrales, se emite la alerta. Con solo
 {n_years} años de datos de humedad del suelo, el margen de error sigue siendo
 amplio. Vuelva a ejecutar
 `COUNTRY={country_key} python -m el_nino.experiments.trigger_calibration`
@@ -1015,8 +1015,8 @@ cada año a medida que se acumulen más datos.
 
 Les seuils ont été choisis en vérifiant lesquels auraient signalé les années
 de sécheresse El Niño documentées pour {country} {anchor} sans se déclencher
-les années normales. Le test s'exécute **par {dept}** — si l'un des
-{priority} ({names}) franchit les deux seuils, l'alerte est émise. Avec
+les années normales. Le test s'exécute **par {dept}** — si n'importe quel {dept} d'{country}
+franchit les deux seuils, l'alerte est émise. Avec
 seulement {n_years} années de données d'humidité du sol, la marge d'erreur
 reste large. Relancez
 `COUNTRY={country_key} python -m el_nino.experiments.trigger_calibration`

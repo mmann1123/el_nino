@@ -61,19 +61,25 @@ class CalibratedTrigger:
 TRIGGERS_BY_COUNTRY: dict[str, list[CalibratedTrigger]] = {
     "el_salvador": [
         CalibratedTrigger(
-            name="silking_drought_v1",
+            name="silking_drought_v2",
             description=(
-                "SPI-3 < −1.5 AND SMAP root-zone anomaly < −0.5σ during silking "
-                "(DOY 196-227, mid-Jul to mid-Aug)"
+                "SPI-3 < −1.5 AND SMAP root-zone anomaly < −1.0σ during silking "
+                "(DOY 196-227, mid-Jul to mid-Aug), in any department"
             ),
             window_doy=(196, 227),
             spi3_threshold=-1.5,
-            rzsm_threshold=-0.5,
+            rzsm_threshold=-1.0,
             severity="high",
             stats=CalibrationStats(
+                # experiments/trigger_calibration_report_es.md — all 14
+                # departments, 2015-2025. Catches 2015 (severe), 2018 (Cabanas)
+                # and 2023 (the west); the eastern-corridor-only v1 caught 2015
+                # alone. Ties SPI-3 < −1.3 on every metric. 3/3 is the best of a
+                # 15-point sweep on the same 11 years, so expect worse out of
+                # sample.
                 n_years=11,
-                precision=1.00,    precision_ci=(0.34, 1.00),
-                recall=0.67,       recall_ci=(0.21, 0.94),
+                precision=1.00,    precision_ci=(0.44, 1.00),
+                recall=1.00,       recall_ci=(0.44, 1.00),
                 severe_recall=1.00, severe_recall_ci=(0.21, 1.00),
                 fp_per_decade=0.00, fp_per_decade_ci=(0.00, 4.61),
             ),
@@ -81,13 +87,11 @@ TRIGGERS_BY_COUNTRY: dict[str, list[CalibratedTrigger]] = {
     ],
     "haiti": [
         CalibratedTrigger(
-            name="silking_drought_v1",
+            name="silking_drought_v2",
             description=(
                 "SPI-3 < −1.3 AND SMAP root-zone anomaly < −0.5σ during the "
-                "printemps→été silking window (DOY 152-227, Jun 1 to Aug 15). "
-                "Fires per priority department; alert is raised if any of "
-                "Sud / Sud-Est / Grand'Anse / Nippes / Nord-Ouest / Centre "
-                "crosses both thresholds."
+                "printemps→été silking window (DOY 152-227, Jun 1 to Aug 15), "
+                "in any department."
             ),
             window_doy=(152, 227),
             spi3_threshold=-1.3,
@@ -96,11 +100,12 @@ TRIGGERS_BY_COUNTRY: dict[str, list[CalibratedTrigger]] = {
             stats=CalibrationStats(
                 # See experiments/trigger_calibration_report_ht.md — combined
                 # SPI+SMAP on 11 yrs (2015-2025), 3 labeled positives in window.
-                # Per-dep any-fires scoring (matches runtime semantics).
+                # Any-department scoring over all 10 (matches runtime). Same
+                # numbers as the v1 priority-only scoring: a non-priority
+                # department never fired in a year a priority one did not.
                 # Catches 2015 (severe) and 2018 (moderate). Misses 2023 —
-                # SPI=-0.59 in worst dep, doesn't cross threshold even though
-                # SMAP showed -1.79σ (rainfall was near-normal in priority
-                # deps despite FEWS-reported NW peninsula impact).
+                # rainfall stayed near normal despite FEWS-reported NW
+                # peninsula impact.
                 # FP/decade is high (2.73) reflecting the noisier HT signal;
                 # the 95% CI is wide given only 11 years of SMAP overlap.
                 n_years=11,
@@ -143,27 +148,31 @@ class FireRecord:
 
 
 def _load_per_dep(indicator: str, col: str) -> dict[str, pd.DataFrame]:
-    """Load the per-departamento series for a given indicator/column."""
+    """Load the active country's per-departamento series for an indicator/column.
+    ES and HT can share one STORAGE_ROOT, so other countries' files are skipped."""
     out: dict[str, pd.DataFrame] = {}
     indicator_dir = config.RAW_DIR / indicator
     if not indicator_dir.exists():
         return out
+    country = config.country_departments()
     for parquet in indicator_dir.glob("*.parquet"):
         df = storage.read_parquet(parquet)
         if df.empty or col not in df.columns:
+            continue
+        dep = df["departamento"].iloc[0]
+        if country and dep not in country:
             continue
         df = df.copy()
         df["date"] = pd.to_datetime(df["date"])
         df["year"] = df["date"].dt.year
         df["doy"] = df["date"].dt.dayofyear
-        dep = df["departamento"].iloc[0]
         out[dep] = df[["date", "year", "doy", col]].rename(columns={col: "value"})
     return out
 
 
 def evaluate_history(trigger: CalibratedTrigger | None = None) -> list[FireRecord]:
     """Return one FireRecord per (year, departamento) where the trigger fired.
-    Restricted to priority departments — matches the calibration's any-fires
+    Every department is evaluated, matching the calibration's any-department
     scoring so the runtime alert means what the report's precision/recall say.
     Returns [] if no calibrated trigger is defined for the active country.
     """
@@ -173,12 +182,9 @@ def evaluate_history(trigger: CalibratedTrigger | None = None) -> list[FireRecor
         trigger = CALIBRATED_TRIGGERS[0]
     spi = _load_per_dep("chirps", "spi_3")
     rzsm = _load_per_dep("smap", "value_anom_z")
-    priority = set(config.PRIORITY_DEPARTMENTS)
 
     fires: list[FireRecord] = []
     for dep, spi_df in spi.items():
-        if dep not in priority:
-            continue
         rzsm_df = rzsm.get(dep)
         if rzsm_df is None or rzsm_df.empty:
             continue
