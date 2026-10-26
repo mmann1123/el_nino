@@ -20,7 +20,7 @@ import pandas as pd
 import streamlit as st
 
 from .. import config
-from ..etl import storage, triggers
+from ..etl import season, storage, triggers
 from . import freshness, i18n
 
 
@@ -126,9 +126,18 @@ def _make_reading(*, label, value, threshold,
 
 # ---------- main banner ----------
 
+@st.cache_data(ttl=300)
+def _status(today_: date) -> tuple[dict | None, season.SeasonSpan | None]:
+    """Trigger state for the season on screen, so the banner resets on the
+    same day as the season panel instead of on Jan 1."""
+    span = season.current_span(today_)
+    status = triggers.current_status(today_, season_year=span.year if span else None)
+    return status, span
+
+
 def banner() -> None:
     """Render the drought-alert summary. Designed for non-technical readers."""
-    status = triggers.current_status()
+    status, span = _status(config.today())
     if status is None:
         st.info(i18n.t("alert_not_calibrated"))
         return
@@ -146,9 +155,15 @@ def banner() -> None:
     # ---- status pill ----
     n_fired = len({f['departamento'] for f in triggered_this_year})
     dep_word = i18n.dept_term(plural=True) if n_fired != 1 else i18n.dept_term()
-    if triggered_this_year:
+    season_over = span is not None and not span.active
+    if triggered_this_year and not season_over:
         pill_bg, pill_label, pill_sub = RED, i18n.t("alert_pill_alert"), \
             i18n.t("alert_pill_alert_sub", n=n_fired, dep_word=dep_word)
+    elif triggered_this_year:
+        # The season it fired in is over: a recap, not a live alert.
+        pill_bg, pill_label, pill_sub = NEUTRAL, i18n.t("alert_pill_ended"), \
+            i18n.t("alert_pill_ended_sub", n=n_fired, dep_word=dep_word,
+                   season=i18n.t(f"season_{config.CC['season']['key']}"), year=span.year)
     elif status["window_active"]:
         pill_bg, pill_label, pill_sub = AMBER, i18n.t("alert_pill_watching"), \
             i18n.t("alert_pill_watching_sub", start=window_start_label, end=window_end_label)
@@ -206,7 +221,7 @@ def banner() -> None:
     if triggered_this_year:
         with st.expander(
             i18n.t("alert_show_triggered", depts=i18n.dept_term(plural=True)),
-            expanded=True,
+            expanded=not season_over,
         ):
             for f in sorted(triggered_this_year, key=lambda r: r["departamento"]):
                 st.markdown(

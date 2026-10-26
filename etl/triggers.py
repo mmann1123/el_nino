@@ -23,9 +23,6 @@ import pandas as pd
 from .. import config
 from . import storage
 
-SILKING_WINDOW: tuple[int, int] = config.CC["silking_window"]
-
-
 @dataclass
 class CalibrationStats:
     """Calibration metrics for this trigger configuration, with 95% CIs.
@@ -66,7 +63,7 @@ TRIGGERS_BY_COUNTRY: dict[str, list[CalibratedTrigger]] = {
                 "SPI-3 < −1.5 AND SMAP root-zone anomaly < −1.0σ during silking "
                 "(DOY 196-227, mid-Jul to mid-Aug), in any department"
             ),
-            window_doy=(196, 227),
+            window_doy=config.COUNTRIES["el_salvador"]["silking_window"],
             spi3_threshold=-1.5,
             rzsm_threshold=-1.0,
             severity="high",
@@ -93,7 +90,7 @@ TRIGGERS_BY_COUNTRY: dict[str, list[CalibratedTrigger]] = {
                 "printemps→été silking window (DOY 152-227, Jun 1 to Aug 15), "
                 "in any department."
             ),
-            window_doy=(152, 227),
+            window_doy=config.COUNTRIES["haiti"]["silking_window"],
             spi3_threshold=-1.3,
             rzsm_threshold=-0.5,
             severity="high",
@@ -162,6 +159,9 @@ def _load_per_dep(indicator: str, col: str) -> dict[str, pd.DataFrame]:
         dep = df["departamento"].iloc[0]
         if country and dep not in country:
             continue
+        if "is_forecast" in df.columns:
+            # GFS forecast pentads carry SPI too; an alert must come from observations.
+            df = df[~df["is_forecast"].fillna(False).astype(bool)]
         df = df.copy()
         df["date"] = pd.to_datetime(df["date"])
         df["year"] = df["date"].dt.year
@@ -220,17 +220,21 @@ def evaluate_history(trigger: CalibratedTrigger | None = None) -> list[FireRecor
 
 
 def current_status(today: date | None = None,
-                   trigger: CalibratedTrigger | None = None) -> dict | None:
+                   trigger: CalibratedTrigger | None = None,
+                   season_year: int | None = None) -> dict | None:
     """Return a dashboard-friendly summary of the trigger state.
-    Returns None if no calibrated trigger is defined for the active country."""
+    Returns None if no calibrated trigger is defined for the active country.
+    `season_year` is the year of the season on screen (etl/season.py), so the
+    banner and the season panel agree; defaults to today's calendar year."""
     if trigger is None:
         if not CALIBRATED_TRIGGERS:
             return None
         trigger = CALIBRATED_TRIGGERS[0]
     today = today or config.today()
     fires = evaluate_history(trigger)
-    fires_this_year = [f for f in fires if f.year == today.year]
-    fires_history = sorted([f for f in fires if f.year < today.year],
+    year = season_year if season_year is not None else today.year
+    fires_this_year = [f for f in fires if f.year == year]
+    fires_history = sorted([f for f in fires if f.year < year],
                            key=lambda f: (f.year, f.departamento))
 
     doy = today.timetuple().tm_yday

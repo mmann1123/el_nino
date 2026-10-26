@@ -907,9 +907,19 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "ALERTE — conditions de sécheresse atteintes",
     },
     "alert_pill_alert_sub": {
-        "en": "Triggered in {n} {dep_word} so far this year",
-        "es": "Activada en {n} {dep_word} en lo que va del año",
-        "fr": "Déclenchée dans {n} {dep_word} depuis le début de l'année",
+        "en": "Triggered in {n} {dep_word} so far this season",
+        "es": "Activada en {n} {dep_word} en lo que va de la temporada",
+        "fr": "Déclenchée dans {n} {dep_word} depuis le début de la saison",
+    },
+    "alert_pill_ended": {
+        "en": "Season over — the alert fired",
+        "es": "Temporada terminada — la alerta se activó",
+        "fr": "Saison terminée — l'alerte s'est déclenchée",
+    },
+    "alert_pill_ended_sub": {
+        "en": "Triggered in {n} {dep_word} during {season} {year}",
+        "es": "Activada en {n} {dep_word} durante {season} {year}",
+        "fr": "Déclenchée dans {n} {dep_word} pendant {season} {year}",
     },
     "alert_pill_watching": {"en": "Watching closely", "es": "En vigilancia", "fr": "Sous surveillance"},
     "alert_pill_watching_sub": {

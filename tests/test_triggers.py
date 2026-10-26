@@ -102,6 +102,16 @@ class TestEvaluateHistory:
         _write("chirps", "Morazan", "spi_3", [(date(2015, 7, 20), -2.0)])
         assert triggers.evaluate_history(TRIGGER) == []
 
+    def test_forecast_rows_cannot_fire(self, tmp_storage, es_departments):
+        # GFS forecast pentads get SPI too; only observations may fire.
+        df = pd.DataFrame({
+            "date": [date(2015, 7, 20)], "departamento": ["Morazan"],
+            "spi_3": [-2.0], "is_forecast": [True],
+        })
+        storage.write_parquet(df, storage.raw_path("chirps", "Morazan"))
+        _write("smap", "Morazan", "value_anom_z", [(date(2015, 7, 20), -1.0)])
+        assert triggers.evaluate_history(TRIGGER) == []
+
 
 class TestCurrentStatus:
     def test_window_active_flag(self, tmp_storage, es_departments):
@@ -127,3 +137,17 @@ class TestCurrentStatus:
         years_hist = {f["year"] for f in status["fires_history"]}
         assert years_this == {2018}
         assert years_hist == {2015}
+
+    def test_season_year_overrides_calendar_year(self, tmp_storage, es_departments):
+        # Mar 2016 is before primera starts, so the season on screen is 2015's.
+        _seed_morazan([(date(2015, 7, 20), -2.0)], [(date(2015, 7, 20), -1.0)])
+        status = triggers.current_status(today=date(2016, 3, 1), trigger=TRIGGER,
+                                         season_year=2015)
+        assert {f["year"] for f in status["fires_this_year"]} == {2015}
+        assert status["fires_history"] == []
+
+
+@pytest.mark.parametrize("country", sorted(triggers.TRIGGERS_BY_COUNTRY))
+def test_trigger_window_is_the_configured_silking_window(country):
+    for trig in triggers.TRIGGERS_BY_COUNTRY[country]:
+        assert trig.window_doy == config.COUNTRIES[country]["silking_window"]

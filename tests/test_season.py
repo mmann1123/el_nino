@@ -133,6 +133,13 @@ class TestSeasonRecord:
         _wapor("Morazan", _dekads(2026, [-2.0, -2.0]))
         assert season.season_record(date(2026, 8, 1)).entries == []
 
+    def test_current_span_switches_on_season_start(self, es_season):
+        before = season.current_span(date(2027, 4, 19))
+        assert (before.year, before.active) == (2026, False)
+        on = season.current_span(date(2027, 4, 20))
+        assert (on.year, on.active) == (2027, True)
+        assert season.current_span(date(2027, 9, 1)).active is False
+
     def test_no_season_configured(self, monkeypatch):
         monkeypatch.setitem(config.CC, "season", None)
         assert season.season_record(date(2026, 8, 1)) is None

@@ -117,9 +117,18 @@ def confirmed_fires(year: int, rule: dict) -> dict[str, date]:
     return out
 
 
-def season_record(today: date | None = None) -> SeasonRecord | None:
-    """The current season if it has started this year, otherwise last year's
-    as a recap. None if the active country defines no season."""
+@dataclass
+class SeasonSpan:
+    year: int
+    start: date
+    end: date
+    active: bool        # False → the season has ended and this is a recap
+
+
+def current_span(today: date | None = None) -> SeasonSpan | None:
+    """The season on screen: this year's once it has started, otherwise last
+    year's. None if the active country defines no season. The alert banner and
+    the season panel both key on this, so they reset on the same day."""
     season = config.CC.get("season")
     if not season:
         return None
@@ -128,7 +137,18 @@ def season_record(today: date | None = None) -> SeasonRecord | None:
     year = today.year if today >= start else today.year - 1
     if year != today.year:
         start, end = season_bounds(year, season)
-    active = start <= today <= end
+    return SeasonSpan(year, start, end, start <= today <= end)
+
+
+def season_record(today: date | None = None) -> SeasonRecord | None:
+    """The current season if it has started this year, otherwise last year's
+    as a recap. None if the active country defines no season."""
+    today = today or config.today()
+    span = current_span(today)
+    if span is None:
+        return None
+    season = config.CC["season"]
+    year, start, end, active = span.year, span.start, span.end, span.active
 
     entries: dict[str, SeasonEntry] = {}
     for fire in triggers.evaluate_history():
