@@ -824,7 +824,7 @@ STRINGS: dict[str, dict[str, str]] = {
               "Lancez `COUNTRY=<key> python -m el_nino.experiments.trigger_calibration` "
               "et intégrez la configuration recommandée dans `etl/triggers.py`.",
     },
-    # ---- "This season" table (dashboard/season_view.py) ----
+    # ---- "This season" panel (dashboard/season_view.py) ----
     "season_primera": {"en": "Primera", "es": "Primera", "fr": "Primera"},
     "season_printemps_ete": {
         "en": "Spring–summer season",
@@ -846,8 +846,25 @@ STRINGS: dict[str, dict[str, str]] = {
         "es": "Ninguno de los {depts} ha activado una señal esta temporada.",
         "fr": "Aucun des {depts} n'a déclenché de signal cette saison.",
     },
-    "season_col_alert": {"en": "Alert", "es": "Alerta", "fr": "Alerte"},
-    "season_col_confirmed": {"en": "Confirmed", "es": "Confirmado", "fr": "Confirmé"},
+    "season_alert_label": {"en": "Alert", "es": "Alerta", "fr": "Alerte"},
+    "season_confirmed_header": {
+        "en": "Confirmed — crop stress ({n})",
+        "es": "Confirmado — estrés del cultivo ({n})",
+        "fr": "Confirmé — stress des cultures ({n})",
+    },
+    "season_row_alert": {"en": "alert {date}", "es": "alerta {date}", "fr": "alerte {date}"},
+    "season_row_confirmed": {"en": "confirmed", "es": "confirmado", "fr": "confirmé"},
+    "season_alert_only_label": {"en": "Alert only", "es": "Solo alerta", "fr": "Alerte seule"},
+    "season_alert_since": {
+        "en": "{label} since {date} ({n}):",
+        "es": "{label} desde {date} ({n}):",
+        "fr": "{label} depuis le {date} ({n}) :",
+    },
+    "season_alert_group": {
+        "en": "{label} ({n}):",
+        "es": "{label} ({n}):",
+        "fr": "{label} ({n}) :",
+    },
     "season_caption": {
         "en": "**Alert** — the date the drought alert below first fired: 3-month rainfall and "
               "root-zone soil moisture both very dry during silking, in any {dept}. "
