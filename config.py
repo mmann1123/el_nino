@@ -89,6 +89,7 @@ COUNTRIES: dict[str, dict] = {
             2015: ("severe",          "Very Strong El Niño; 60% maize / 80% beans loss in Dry Corridor"),
             2018: ("moderate",        "Weak El Niño; postrera impact even at weak strength (FAO 2018)"),
             2023: ("moderate",        "Strong El Niño; one-month delay to postrera; 25%+ subsistence yield reduction"),
+            2026: ("moderate",        "Primera drought; field-confirmed irreversible maize damage in La Union and Morazan, Santa Ana much less affected (experiments/primera_2026_eval_report.md)"),
         },
     },
     "haiti": {

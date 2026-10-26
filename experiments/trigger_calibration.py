@@ -16,7 +16,7 @@ Method:
   Evaluate every department in the country. For each candidate threshold +
   window, ask: did SPI-3 (or the AND of SPI-3 + RZSM) cross below the
   threshold during the silking window in any department? The current year is
-  left out — it has no label yet. Score precision / recall / lead-time /
+  left out until it is labeled. Score precision / recall / lead-time /
   false-positive rate against the labeled events.
 
 Output:
@@ -82,7 +82,9 @@ def load_indicator(indicator: str, value_col: str) -> pd.DataFrame:
         df["date"] = pd.to_datetime(df["date"])
         df["year"] = df["date"].dt.year
         df["doy"] = df["date"].dt.dayofyear
-        df = df[df["year"] < config.today().year]  # unlabeled until the year is over
+        # The current year counts only once it is labeled (e.g. a field-confirmed
+        # drought); otherwise it is not yet known to be a negative.
+        df = df[(df["year"] < config.today().year) | df["year"].isin(POSITIVE_YEARS)]
         df["departamento"] = dep
         frames.append(df[["date", "year", "doy", "departamento", value_col]]
                       .rename(columns={value_col: "value"}))

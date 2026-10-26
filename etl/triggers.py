@@ -72,14 +72,14 @@ TRIGGERS_BY_COUNTRY: dict[str, list[CalibratedTrigger]] = {
             severity="high",
             stats=CalibrationStats(
                 # experiments/trigger_calibration_report_es.md — all 14
-                # departments, 2015-2025. Catches 2015 (severe), 2018 (Cabanas)
-                # and 2023 (the west); the eastern-corridor-only v1 caught 2015
-                # alone. Ties SPI-3 < −1.3 on every metric. 3/3 is the best of a
-                # 15-point sweep on the same 11 years, so expect worse out of
-                # sample.
-                n_years=11,
-                precision=1.00,    precision_ci=(0.44, 1.00),
-                recall=1.00,       recall_ci=(0.44, 1.00),
+                # departments, 2015-2026. Catches 2015 (severe), 2018 (Cabanas),
+                # 2023 (the west) and 2026 (field-confirmed in the east); the
+                # eastern-corridor-only v1 caught 2015 alone. Ties SPI-3 < −1.3
+                # on every metric. 4/4 is the best of a 15-point sweep on the
+                # same 12 years, so expect worse out of sample.
+                n_years=12,
+                precision=1.00,    precision_ci=(0.51, 1.00),
+                recall=1.00,       recall_ci=(0.51, 1.00),
                 severe_recall=1.00, severe_recall_ci=(0.21, 1.00),
                 fp_per_decade=0.00, fp_per_decade_ci=(0.00, 4.61),
             ),

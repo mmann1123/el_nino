@@ -207,7 +207,7 @@ events:
 | Window | DOY 196-227 (mid-Jul to mid-Aug) | DOY 152-227 (Jun 1 to Aug 15) |
 | SPI-3 threshold | < −1.5 | < −1.3 |
 | SMAP RZSM threshold | < −1.0σ | < −0.5σ |
-| Recall | 100% (2015, 2018, 2023) | 67% (2015, 2018) |
+| Recall | 100% (2015, 2018, 2023, 2026) | 67% (2015, 2018) |
 | Severe recall | 100% (catches 2015) | 100% (catches 2015) |
 | Precision | 100% | 40% |
 | FP / decade | 0.0 | 2.7 |
