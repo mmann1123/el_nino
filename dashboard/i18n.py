@@ -837,10 +837,10 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "season_printemps": {"en": "Spring season", "es": "Temporada de primavera", "fr": "Saison de printemps"},
     "season_automne": {"en": "Autumn season", "es": "Temporada de otoño", "fr": "Saison d'automne"},
-    "season_previous": {
-        "en": "Previous season, {season} {year}: {n_confirmed} confirmed, {n_alert} with an alert only. For reference only: this season started fresh.",
-        "es": "Temporada anterior, {season} {year}: {n_confirmed} confirmados, {n_alert} solo con alerta. Solo como referencia: esta temporada empezó de cero.",
-        "fr": "Saison précédente, {season} {year} : {n_confirmed} confirmés, {n_alert} en alerte seulement. À titre indicatif : cette saison est repartie de zéro.",
+    "season_header_previous": {
+        "en": "**Previous season — {season} {year}** ({span}, ended)",
+        "es": "**Temporada anterior — {season} {year}** ({span}, terminada)",
+        "fr": "**Saison précédente — {season} {year}** ({span}, terminée)",
     },
     "season_header_active": {
         "en": "**This season — {season} {year}** ({span})",

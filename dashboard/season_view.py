@@ -1,6 +1,7 @@
-"""The Overview's "This season" panel: every departamento that fired this
-season, kept until the season ends. Confirmed ones get their own highlighted
-box; alert-only ones collapse into a single line. Logic lives in etl/season.py; this module
+"""The Overview's season panels: every departamento that fired in the season
+on screen, kept until the season ends, with the previous season below it.
+Confirmed ones get their own highlighted box; alert-only ones collapse into a
+single line. Logic lives in etl/season.py; this module
 only renders it. Between seasons it shows the last season's events — never
 more than that one season — until the next season starts.
 """
@@ -91,13 +92,6 @@ def _layout(rec: season.SeasonRecord) -> str:
     return "".join(parts)
 
 
-def _previous_line(prev: season.SeasonSummary) -> str:
-    """Muted context only: the last season's outcome never carries over."""
-    text = i18n.t("season_previous", season=i18n.t(f"season_{prev.key}"), year=prev.year,
-                  n_confirmed=prev.n_confirmed, n_alert=prev.n_alert_only)
-    return f"<div style='color:#78909c;font-size:0.9em;padding:2px 2px 8px;'>{text}</div>"
-
-
 def _body(rec: season.SeasonRecord) -> None:
     if rec.entries:
         st.markdown(_layout(rec), unsafe_allow_html=True)
@@ -107,14 +101,19 @@ def _body(rec: season.SeasonRecord) -> None:
     st.caption(i18n.t(key, dept=i18n.dept_term(), rule=alerts.rule_text(triggers.trigger_for(rec.key))))
 
 
+def _season(rec: season.SeasonRecord, header_key: str) -> None:
+    name = i18n.t(f"season_{rec.key}")
+    span = f"{i18n.fmt_mon_day(rec.start)} – {i18n.fmt_mon_day(rec.end)}"
+    st.markdown(i18n.t(header_key, season=name, year=rec.year, span=span))
+    _body(rec)
+
+
 def render(today_: date) -> None:
+    """The season on screen, then the one before it. Each keeps its own
+    departments: nothing carries over from one season to the next."""
     rec = _record(today_)
     if rec is None:
         return
-    name = i18n.t(f"season_{rec.key}")
-    span = f"{i18n.fmt_mon_day(rec.start)} – {i18n.fmt_mon_day(rec.end)}"
-    key = "season_header_active" if rec.active else "season_header_ended"
-    st.markdown(i18n.t(key, season=name, year=rec.year, span=span))
-    if rec.active and rec.previous is not None:
-        st.markdown(_previous_line(rec.previous), unsafe_allow_html=True)
-    _body(rec)
+    _season(rec, "season_header_active" if rec.active else "season_header_ended")
+    if rec.previous is not None:
+        _season(rec.previous, "season_header_previous")

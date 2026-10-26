@@ -49,7 +49,7 @@ def test_frozen_record_survives_data_revision(es_seasons, monkeypatch):
     # Revised data no longer fires; the closed season keeps what was shown.
     monkeypatch.setattr(triggers, "evaluate_history", lambda: [])
     rec = season.season_record(date(2026, 11, 2))
-    assert rec.previous == season.SeasonSummary("primera", 2026, 0, 1)
+    assert [e.departamento for e in rec.previous.entries] == ["Morazan"]
     assert season_history.freeze_closed(date(2026, 11, 2)) == []
 
 

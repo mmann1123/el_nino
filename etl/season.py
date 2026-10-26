@@ -44,14 +44,6 @@ class SeasonEntry:
 
 
 @dataclass
-class SeasonSummary:
-    key: str
-    year: int
-    n_confirmed: int
-    n_alert_only: int
-
-
-@dataclass
 class SeasonRecord:
     key: str            # i18n stem: season_<key>
     year: int           # planting year
@@ -60,7 +52,7 @@ class SeasonRecord:
     active: bool        # False → the season has ended and this is a recap
     entries: list[SeasonEntry]
     has_confirm: bool = False
-    previous: SeasonSummary | None = None   # the season before, for context only
+    previous: SeasonRecord | None = None    # the season before, shown below; never merged
 
 
 def dekad_end(d: date) -> date:
@@ -206,8 +198,8 @@ def _entries(span: SeasonSpan, today: date, fires: list) -> tuple[list[SeasonEnt
 
 def season_record(today: date | None = None) -> SeasonRecord | None:
     """The season on screen (see current_span) with every department that
-    fired in it, plus a summary of the season before. None if the active
-    country defines no seasons."""
+    fired in it, plus the season before it as its own record. None if the
+    active country defines no seasons."""
     today = today or config.today()
     span = current_span(today)
     if span is None:
@@ -216,8 +208,8 @@ def season_record(today: date | None = None) -> SeasonRecord | None:
     entries, has_confirm = _entries(span, today, fires)
     previous = None
     if (prev := previous_span(span)) is not None:
-        prev_entries, _ = _entries(prev, today, fires)
-        n_conf = sum(e.confirmed_date is not None for e in prev_entries)
-        previous = SeasonSummary(prev.key, prev.year, n_conf, len(prev_entries) - n_conf)
+        prev_entries, prev_confirm = _entries(prev, today, fires)
+        previous = SeasonRecord(prev.key, prev.year, prev.start, prev.end, False,
+                                prev_entries, prev_confirm)
     return SeasonRecord(span.key, span.year, span.start, span.end, span.active,
                         entries, has_confirm, previous)

@@ -8,7 +8,7 @@ from datetime import date
 import pytest
 
 from el_nino.dashboard import i18n, season_view
-from el_nino.etl.season import SeasonEntry, SeasonRecord, SeasonSummary
+from el_nino.etl.season import SeasonEntry, SeasonRecord
 
 
 @pytest.fixture(autouse=True)
@@ -62,10 +62,3 @@ def test_alert_only_season_has_no_confirmed_box():
     html = season_view._layout(_rec([SeasonEntry("Nord", ALERT)], has_confirm=False))
     assert "Confirmed" not in html
     assert "Alert since Jul 19 (1):" in html
-
-
-def test_previous_season_line_is_context_only():
-    prev = SeasonSummary("primera", 2026, 3, 11)
-    line = season_view._previous_line(prev)
-    assert "Previous season, Primera (first season) 2026: 3 confirmed, 11 with an alert only." in line
-    assert "this season started fresh" in line

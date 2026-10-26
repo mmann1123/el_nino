@@ -141,7 +141,7 @@ class TestSeasonRecord:
                             lambda: [_fire("Morazan", 2025, date(2025, 7, 24))])
         assert season.season_record(date(2026, 8, 1)).entries == []
 
-    def test_next_season_starts_clean_with_previous_summary(self, es_season, monkeypatch):
+    def test_next_season_starts_clean_with_previous_below(self, es_season, monkeypatch):
         monkeypatch.setattr(triggers, "evaluate_history", lambda: [
             _fire("Morazan", 2026, date(2026, 7, 24)),
             _fire("Cabanas", 2026, date(2026, 7, 30)),
@@ -150,7 +150,11 @@ class TestSeasonRecord:
         rec = season.season_record(date(2026, 9, 2))
         assert rec.key == "postrera" and rec.active and not rec.has_confirm
         assert rec.entries == []
-        assert rec.previous == season.SeasonSummary("primera", 2026, 1, 1)
+        prev = rec.previous
+        assert (prev.key, prev.year, prev.active, prev.has_confirm) == ("primera", 2026, False, True)
+        by_dep = {e.departamento: e for e in prev.entries}
+        assert by_dep["Morazan"].confirmed_date == date(2026, 7, 11)
+        assert by_dep["Cabanas"].confirmed_date is None
 
     def test_later_season_lists_only_its_own_fires(self, es_season, monkeypatch):
         monkeypatch.setattr(triggers, "evaluate_history", lambda: [
