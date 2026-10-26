@@ -13,14 +13,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from .. import config
-from ..etl import season, storage, triggers
+from ..etl import season, season_history, storage, triggers
 from . import freshness, i18n
 
 
@@ -70,13 +70,14 @@ def _stale_reading(label: str, threshold_text: str) -> CurrentReading:
     return CurrentReading(label, i18n.t("cat_stale_label"), "—", NEUTRAL, threshold_text)
 
 
-def _spi3_reading(threshold: float) -> CurrentReading:
+def _spi_reading(threshold: float, column: str = "spi_3") -> CurrentReading:
+    """Country-mean SPI on the same scale the trigger uses."""
+    label = i18n.t("reading_rain_label" if column == "spi_3" else f"reading_rain_label_{column}")
     if freshness.is_stale("chirps", config.today()):
-        return _stale_reading(i18n.t("reading_rain_label"),
-                              i18n.t("reading_activates_below", thr=f"{threshold:+.1f}"))
-    v = _country_mean_latest("chirps", "spi_3")
+        return _stale_reading(label, i18n.t("reading_activates_below", thr=f"{threshold:+.1f}"))
+    v = _country_mean_latest("chirps", column)
     return _make_reading(
-        label=i18n.t("reading_rain_label"),
+        label=label,
         value=v,
         threshold=threshold,
         wet_text=i18n.t("reading_wet"),
@@ -131,23 +132,59 @@ def _status(today_: date) -> tuple[dict | None, season.SeasonSpan | None]:
     """Trigger state for the season on screen, so the banner resets on the
     same day as the season panel instead of on Jan 1."""
     span = season.current_span(today_)
-    status = triggers.current_status(today_, season_year=span.year if span else None)
+    status = triggers.current_status(today_, span=span)
+    if status is not None and span is not None and not span.active:
+        # A closed, frozen season shows what the season panel shows.
+        frozen = season_history.frozen_entries(span)
+        if frozen is not None:
+            status["fires_this_year"] = [
+                {"departamento": e.departamento, "first_date": e.alert_date.isoformat(), "frozen": True}
+                for e in frozen[0] if e.alert_date is not None
+            ]
     return status, span
+
+
+def rule_text(trig: triggers.CalibratedTrigger | None) -> str:
+    """Short description of what fires a trigger, for captions."""
+    if trig is None:
+        return i18n.t("rule_short_rain_soil", rain=i18n.t("rain_short_spi_3"))
+    rain = i18n.t(f"rain_short_{trig.spi_column}")
+    key = "rule_short_rain" if trig.rzsm_threshold is None else "rule_short_rain_soil"
+    return i18n.t(key, rain=rain)
+
+
+def _condition_text(trig: triggers.CalibratedTrigger) -> str:
+    rain = i18n.t(f"rain_{trig.spi_column}")
+    key = "alert_cond_rain" if trig.rzsm_threshold is None else "alert_cond_rain_soil"
+    return i18n.t(key, rain=rain)
+
+
+def _provisional_text(trig: triggers.CalibratedTrigger) -> str:
+    labels = config.season_cfg(trig.season)["labeled_events"]
+    years = sorted(y for y, (sev, _) in labels.items() if sev not in ("normal", "excluded"))
+    return i18n.t("alert_provisional", season=i18n.t(f"season_{trig.season}"),
+                  n=len(years), years=", ".join(map(str, years)))
 
 
 def banner() -> None:
     """Render the drought-alert summary. Designed for non-technical readers."""
     status, span = _status(config.today())
     if status is None:
-        st.info(i18n.t("alert_not_calibrated"))
+        if span is not None and triggers.CALIBRATED_TRIGGERS:
+            # Another season has an alert; this one isn't calibrated yet.
+            st.markdown(i18n.t("alert_header"))
+            st.info(i18n.t("alert_not_calibrated_season",
+                           season=i18n.t(f"season_{span.key}"), year=span.year))
+        else:
+            st.info(i18n.t("alert_not_calibrated"))
         return
     trig = status["trigger"]
     today = status["today"]
     triggered_this_year = status["fires_this_year"]
     past_triggered = status["fires_history"]
 
-    window_start_label = _doy_to_label(trig.window_doy[0], today.year)
-    window_end_label = _doy_to_label(trig.window_doy[1], today.year)
+    window_start_label = i18n.fmt_mon_day(status["window_start"])
+    window_end_label = i18n.fmt_mon_day(status["window_end"])
 
     # Section header
     st.markdown(i18n.t("alert_header"))
@@ -163,15 +200,15 @@ def banner() -> None:
         # The season it fired in is over: a recap, not a live alert.
         pill_bg, pill_label, pill_sub = NEUTRAL, i18n.t("alert_pill_ended"), \
             i18n.t("alert_pill_ended_sub", n=n_fired, dep_word=dep_word,
-                   season=i18n.t(f"season_{config.CC['season']['key']}"), year=span.year)
+                   season=i18n.t(f"season_{span.key}"), year=span.year)
     elif status["window_active"]:
         pill_bg, pill_label, pill_sub = AMBER, i18n.t("alert_pill_watching"), \
             i18n.t("alert_pill_watching_sub", start=window_start_label, end=window_end_label)
     elif status["window_passed"]:
         pill_bg, pill_label, pill_sub = GREEN, i18n.t("alert_pill_clear"), \
-            i18n.t("alert_pill_clear_sub", year=today.year)
+            i18n.t("alert_pill_clear_sub", year=span.year if span else today.year)
     else:
-        days_until = trig.window_doy[0] - today.timetuple().tm_yday
+        days_until = (status["window_start"] - today).days
         pill_bg, pill_label, pill_sub = NEUTRAL, i18n.t("alert_pill_pre"), \
             i18n.t("alert_pill_pre_sub", days=days_until, start=window_start_label)
 
@@ -185,14 +222,16 @@ def banner() -> None:
         "</div>",
         unsafe_allow_html=True,
     )
+    if trig.provisional:
+        st.caption(_provisional_text(trig))
 
-    # ---- current readings ----
-    spi3 = _spi3_reading(trig.spi3_threshold)
-    rzsm = _rzsm_reading(trig.rzsm_threshold)
+    # ---- current readings: the indicators this trigger actually uses ----
+    readings = [_spi_reading(trig.spi3_threshold, trig.spi_column)]
+    if trig.rzsm_threshold is not None:
+        readings.append(_rzsm_reading(trig.rzsm_threshold))
 
     st.markdown(i18n.t("alert_right_now"))
-    c1, c2 = st.columns(2)
-    for col, r in zip((c1, c2), (spi3, rzsm)):
+    for col, r in zip(st.columns(2), readings):
         with col:
             st.markdown(
                 f"<div style='border-left:6px solid {r.color};"
@@ -209,6 +248,7 @@ def banner() -> None:
     st.markdown(
         i18n.t(
             "alert_explain",
+            condition=_condition_text(trig),
             start=window_start_label,
             end=window_end_label,
             country=config.CC["display_name"],
@@ -223,16 +263,10 @@ def banner() -> None:
             i18n.t("alert_show_triggered", depts=i18n.dept_term(plural=True)),
             expanded=not season_over,
         ):
+            if not any(f.get("frozen") for f in triggered_this_year):
+                st.caption(i18n.t("alert_scores_note"))
             for f in sorted(triggered_this_year, key=lambda r: r["departamento"]):
-                st.markdown(
-                    i18n.t(
-                        "alert_triggered_row",
-                        dep=f["departamento"],
-                        spi=f"{f['spi3_min']:.2f}",
-                        rzsm=f"{f['rzsm_min_z']:.2f}",
-                        date=f.get("first_date") or f["fire_date"],
-                    )
-                )
+                st.markdown(_fire_row(f))
 
     # ---- confidence expander (now also contains the past-triggered history) ----
     if trig.stats is not None or past_triggered:
@@ -247,7 +281,7 @@ def banner() -> None:
                 # Pull the severe anchor years from the country's labeled
                 # events so the descriptive copy stays in sync with config.
                 severe_yrs = sorted(
-                    y for y, (sev, _) in config.CC.get("labeled_events", {}).items()
+                    y for y, (sev, _) in config.season_cfg(trig.season)["labeled_events"].items()
                     if sev.startswith("severe")
                 )
                 if severe_yrs:
@@ -263,9 +297,9 @@ def banner() -> None:
                         recall=f"{s.recall:.0%}",
                         recall_lo=f"{s.recall_ci[0]:.0%}",
                         recall_hi=f"{s.recall_ci[1]:.0%}",
-                        severe=f"{s.severe_recall:.0%}",
-                        severe_lo=f"{s.severe_recall_ci[0]:.0%}",
-                        severe_hi=f"{s.severe_recall_ci[1]:.0%}",
+                        severe=_pct(s.severe_recall),
+                        severe_lo=_pct(s.severe_recall_ci[0]),
+                        severe_hi=_pct(s.severe_recall_ci[1]),
                         fp=f"{s.fp_per_decade:.1f}",
                         fp_lo=f"{s.fp_per_decade_ci[0]:.1f}",
                         fp_hi=f"{s.fp_per_decade_ci[1]:.1f}",
@@ -298,6 +332,19 @@ def banner() -> None:
                     )
 
 
-def _doy_to_label(doy: int, year: int) -> str:
-    d = datetime(year, 1, 1) + timedelta(days=int(doy) - 1)
-    return i18n.fmt_mon_day(d)
+def _pct(x: float) -> str:
+    """A proportion as a percentage; "—" when undefined (no severe label)."""
+    return "—" if x != x else f"{x:.0%}"
+
+
+def _fire_row(f: dict) -> str:
+    """One triggered department, with the values that apply to it."""
+    date_ = i18n.fmt_day_mon_year(f.get("first_date") or f.get("fire_date"))
+    if f.get("frozen"):
+        return i18n.t("alert_triggered_row_frozen", dep=f["departamento"], date=date_)
+    rzsm = f.get("rzsm_min_z")
+    if rzsm is None:
+        return i18n.t("alert_triggered_row_rain", dep=f["departamento"],
+                      spi=f"{f['spi3_min']:.2f}", date=date_)
+    return i18n.t("alert_triggered_row", dep=f["departamento"], spi=f"{f['spi3_min']:.2f}",
+                  rzsm=f"{rzsm:.2f}", date=date_)

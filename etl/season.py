@@ -1,24 +1,26 @@
-"""This season's record per department, for the Overview's "This season" table.
+"""This season's record per department, for the Overview's "This season" panel.
 
+Each country has back-to-back growing seasons (``config.CC['seasons']``).
 Two tiers, each dated by the first day it fired:
 
-  Alert      the calibrated trigger (etl/triggers.py): SPI-3 and SMAP root-zone
-             both past their thresholds in the silking window, in any
-             department, as calibrated.
-  Confirmed  crop water use well below normal: the indicator named in
-             ``config.CC['confirm_rule']`` (cropland WAPOR ETa) at or below its
-             z threshold for N observations in a row inside the rule's window.
+  Alert      the season's calibrated trigger (etl/triggers.py): SPI and SMAP
+             root-zone past their thresholds in the season's alert window, in
+             any department, as calibrated.
+  Confirmed  crop water use well below normal: the indicator named in the
+             season's ``confirm_rule`` (cropland WAPOR ETa) at or below its z
+             threshold for N observations in a row inside the rule's window.
 
-Once a department fires it stays listed until the season ends, so the table
+Once a department fires it stays listed until its season ends, so the panel
 answers "where has this season gone wrong so far", while the map and panels
-show today's conditions. Between seasons the table recaps the last one.
+show today's conditions. The next season starts clean; between seasons the
+panel recaps the last one.
 """
 
 from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
 import pandas as pd
 
@@ -42,13 +44,23 @@ class SeasonEntry:
 
 
 @dataclass
+class SeasonSummary:
+    key: str
+    year: int
+    n_confirmed: int
+    n_alert_only: int
+
+
+@dataclass
 class SeasonRecord:
     key: str            # i18n stem: season_<key>
-    year: int
+    year: int           # planting year
     start: date
     end: date
     active: bool        # False → the season has ended and this is a recap
     entries: list[SeasonEntry]
+    has_confirm: bool = False
+    previous: SeasonSummary | None = None   # the season before, for context only
 
 
 def dekad_end(d: date) -> date:
@@ -60,13 +72,14 @@ def dekad_end(d: date) -> date:
     return d.replace(day=calendar.monthrange(d.year, d.month)[1])
 
 
-def _doy_to_date(year: int, doy: int) -> date:
-    return date(year, 1, 1) + timedelta(days=doy - 1)
-
-
 def season_bounds(year: int, season: dict) -> tuple[date, date]:
-    start_doy, end_doy = season["doy"]
-    return _doy_to_date(year, start_doy), _doy_to_date(year, end_doy)
+    """Start and end of the season planted in `year`; an `end` that falls
+    before `start` in the calendar is in the next year."""
+    start = date(year, *season["start"])
+    end = date(year, *season["end"])
+    if end < start:
+        end = date(year + 1, *season["end"])
+    return start, end
 
 
 def first_confirmed_date(
@@ -119,47 +132,92 @@ def confirmed_fires(year: int, rule: dict) -> dict[str, date]:
 
 @dataclass
 class SeasonSpan:
-    year: int
+    key: str
+    year: int           # planting year
     start: date
     end: date
     active: bool        # False → the season has ended and this is a recap
 
 
+def _spans(today: date) -> list[SeasonSpan]:
+    """Every season instance planted last year or this year, oldest first."""
+    out = []
+    for year in (today.year - 1, today.year):
+        for s in config.CC.get("seasons") or []:
+            start, end = season_bounds(year, s)
+            out.append(SeasonSpan(s["key"], year, start, end, start <= today <= end))
+    return sorted(out, key=lambda sp: sp.start)
+
+
 def current_span(today: date | None = None) -> SeasonSpan | None:
-    """The season on screen: this year's once it has started, otherwise last
-    year's. None if the active country defines no season. The alert banner and
-    the season panel both key on this, so they reset on the same day."""
-    season = config.CC.get("season")
-    if not season:
-        return None
+    """The season on screen: the one running today, otherwise the most recent
+    one to end (a recap until the next starts). None if the active country
+    defines no seasons. The alert banner and the season panel both key on
+    this, so they reset on the same day."""
     today = today or config.today()
-    start, end = season_bounds(today.year, season)
-    year = today.year if today >= start else today.year - 1
-    if year != today.year:
-        start, end = season_bounds(year, season)
-    return SeasonSpan(year, start, end, start <= today <= end)
+    spans = _spans(today)
+    active = [sp for sp in spans if sp.active]
+    if active:
+        return active[0]
+    ended = [sp for sp in spans if sp.end < today]
+    return ended[-1] if ended else None
+
+
+def closed_spans(today: date) -> list[SeasonSpan]:
+    """Season instances planted last year or this year that ended before today."""
+    return [sp for sp in _spans(today) if sp.end < today]
+
+
+def previous_span(span: SeasonSpan) -> SeasonSpan | None:
+    """The season instance that ended most recently before `span` started."""
+    ended = [sp for sp in _spans(span.start) if sp.end < span.start]
+    if not ended:
+        return None
+    prev = ended[-1]
+    prev.active = False
+    return prev
+
+
+def live_entries(span: SeasonSpan, today: date, fires: list) -> tuple[list[SeasonEntry], bool]:
+    """Departments that fired in `span` by `today`, computed from the data,
+    and whether the season has a Confirmed tier."""
+    entries: dict[str, SeasonEntry] = {}
+    for fire in fires:
+        if (fire.season == span.key and fire.year == span.year
+                and fire.first_date is not None and fire.first_date <= today):
+            entries.setdefault(fire.departamento, SeasonEntry(fire.departamento)).alert_date = fire.first_date
+    rule = config.season_cfg(span.key).get("confirm_rule")
+    if rule:
+        for dep, fired in confirmed_fires(span.year, rule).items():
+            # Not confirmed until the dekad that completes the run is over.
+            if dekad_end(fired) <= today:
+                entries.setdefault(dep, SeasonEntry(dep)).confirmed_date = fired
+    ordered = sorted(entries.values(), key=lambda e: (e.first_date, e.departamento))
+    return ordered, bool(rule)
+
+
+def _entries(span: SeasonSpan, today: date, fires: list) -> tuple[list[SeasonEntry], bool]:
+    """A closed season's frozen record if it has one, otherwise live."""
+    from . import season_history  # imports this module
+    if span.end < today and (frozen := season_history.frozen_entries(span)) is not None:
+        return frozen
+    return live_entries(span, today, fires)
 
 
 def season_record(today: date | None = None) -> SeasonRecord | None:
-    """The current season if it has started this year, otherwise last year's
-    as a recap. None if the active country defines no season."""
+    """The season on screen (see current_span) with every department that
+    fired in it, plus a summary of the season before. None if the active
+    country defines no seasons."""
     today = today or config.today()
     span = current_span(today)
     if span is None:
         return None
-    season = config.CC["season"]
-    year, start, end, active = span.year, span.start, span.end, span.active
-
-    entries: dict[str, SeasonEntry] = {}
-    for fire in triggers.evaluate_history():
-        if fire.year == year and fire.first_date is not None and fire.first_date <= today:
-            entries.setdefault(fire.departamento, SeasonEntry(fire.departamento)).alert_date = fire.first_date
-    rule = config.CC.get("confirm_rule")
-    if rule:
-        for dep, fired in confirmed_fires(year, rule).items():
-            # Not confirmed until the dekad that completes the run is over.
-            if dekad_end(fired) <= today:
-                entries.setdefault(dep, SeasonEntry(dep)).confirmed_date = fired
-
-    ordered = sorted(entries.values(), key=lambda e: (e.first_date, e.departamento))
-    return SeasonRecord(season["key"], year, start, end, active, ordered)
+    fires = triggers.evaluate_history()
+    entries, has_confirm = _entries(span, today, fires)
+    previous = None
+    if (prev := previous_span(span)) is not None:
+        prev_entries, _ = _entries(prev, today, fires)
+        n_conf = sum(e.confirmed_date is not None for e in prev_entries)
+        previous = SeasonSummary(prev.key, prev.year, n_conf, len(prev_entries) - n_conf)
+    return SeasonRecord(span.key, span.year, span.start, span.end, span.active,
+                        entries, has_confirm, previous)

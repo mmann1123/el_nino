@@ -7,9 +7,8 @@ from datetime import date
 
 import pytest
 
-from el_nino import config
 from el_nino.dashboard import i18n, season_view
-from el_nino.etl.season import SeasonEntry, SeasonRecord
+from el_nino.etl.season import SeasonEntry, SeasonRecord, SeasonSummary
 
 
 @pytest.fixture(autouse=True)
@@ -19,8 +18,9 @@ def _english():
     i18n.set_offline_lang("en")
 
 
-def _rec(entries):
-    return SeasonRecord("primera", 2026, date(2026, 4, 20), date(2026, 8, 31), False, entries)
+def _rec(entries, has_confirm=True, previous=None):
+    return SeasonRecord("primera", 2026, date(2026, 4, 20), date(2026, 8, 31), False,
+                        entries, has_confirm, previous)
 
 
 ALERT = date(2026, 7, 19)
@@ -38,16 +38,14 @@ def test_split_orders_confirmed_by_dekad():
     assert [e.departamento for e in alert_only] == ["Ahuachapan", "Cabanas"]
 
 
-def test_confirmed_box_comes_before_alert_line(monkeypatch):
-    monkeypatch.setitem(config.CC, "confirm_rule", {"indicator": "wapor"})
+def test_confirmed_box_comes_before_alert_line():
     html = season_view._layout(_rec(ENTRIES))
     assert "Confirmed — crop stress (2)" in html
     assert html.index("La Union") < html.index("Ahuachapan")
     assert "Jul 11–20" in html
 
 
-def test_shared_alert_date_is_printed_once(monkeypatch):
-    monkeypatch.setitem(config.CC, "confirm_rule", {"indicator": "wapor"})
+def test_shared_alert_date_is_printed_once():
     line = season_view._alert_line(season_view._split(ENTRIES)[1], has_confirm=True)
     assert "Alert only since Jul 19 (2):" in line
     assert line.count("Jul 19") == 1
@@ -60,8 +58,14 @@ def test_differing_alert_dates_go_on_each_name():
     assert "Jul 19" in line and "Jul 29" in line
 
 
-def test_alert_only_country_has_no_confirmed_box(monkeypatch):
-    monkeypatch.setitem(config.CC, "confirm_rule", None)
-    html = season_view._layout(_rec([SeasonEntry("Nord", ALERT)]))
+def test_alert_only_season_has_no_confirmed_box():
+    html = season_view._layout(_rec([SeasonEntry("Nord", ALERT)], has_confirm=False))
     assert "Confirmed" not in html
     assert "Alert since Jul 19 (1):" in html
+
+
+def test_previous_season_line_is_context_only():
+    prev = SeasonSummary("primera", 2026, 3, 11)
+    line = season_view._previous_line(prev)
+    assert "Previous season, Primera (first season) 2026: 3 confirmed, 11 with an alert only." in line
+    assert "this season started fresh" in line

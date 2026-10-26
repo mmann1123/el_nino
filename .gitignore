@@ -25,3 +25,6 @@ __pycache__/
 # Cached Earth Engine pulls for experiments/primera_2026_eval.py and
 # experiments/leading_indicators.py — re-pulled on demand.
 data/eval_primera_2026/
+
+# Raw downloads for experiments/build_evidence.py — re-fetched on demand.
+experiments/evidence/.cache/

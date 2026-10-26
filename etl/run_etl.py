@@ -63,7 +63,11 @@ def cmd_synth(args) -> None:
     print("  imerg...")
     synth.synth_imerg(start, end)
 
-    cmd_finalize(args)
+    # Synthetic seasons must never be frozen: drop any earlier freeze and
+    # skip freezing, so real data can replace them later.
+    from . import season_history
+    season_history.clear()
+    cmd_finalize(args, freeze=False)
 
 
 def cmd_fetch(args) -> None:
@@ -206,8 +210,9 @@ def cmd_enso(args) -> None:
         print(f"  could not fetch weekly Niño 3.4 ({e}); ONI saved regardless")
 
 
-def cmd_finalize(args) -> None:
-    """Run SPI recompute + climatology + per-indicator anomaly attachment + freshness write."""
+def cmd_finalize(args, freeze: bool = True) -> None:
+    """Run SPI recompute + climatology + per-indicator anomaly attachment +
+    freshness write, then freeze closed seasons (not for synthetic data)."""
     # CHIRPS SPI depends on the full history; recompute first so the
     # value_anom_z attached below uses up-to-date SPI series.
     print("Recomputing CHIRPS SPI across full record...")
@@ -220,6 +225,10 @@ def cmd_finalize(args) -> None:
         synth.attach_anomaly_z(name)
     print("Writing freshness.json...")
     synth.update_freshness(config.today())
+    if freeze:
+        from . import season_history
+        frozen = season_history.freeze_closed()
+        print(f"Froze closed seasons: {', '.join(frozen) if frozen else 'none new'}")
 
 
 def main() -> None:

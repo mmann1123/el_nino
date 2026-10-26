@@ -10,3 +10,6 @@ __pycache__/
 service-account*.json
 ee-sa-key.json
 .streamlit/secrets.toml
+
+# Evidence archive for calibration labels — not needed at runtime.
+experiments/evidence/

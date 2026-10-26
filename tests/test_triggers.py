@@ -7,13 +7,15 @@ the silking window, in any of the active country's departments.
 
 from __future__ import annotations
 
+import dataclasses
+
 from datetime import date
 
 import pandas as pd
 import pytest
 
 from el_nino import config
-from el_nino.etl import storage, triggers
+from el_nino.etl import season, storage, triggers
 
 
 TRIGGER = triggers.CalibratedTrigger(
@@ -23,6 +25,7 @@ TRIGGER = triggers.CalibratedTrigger(
     spi3_threshold=-1.5,
     rzsm_threshold=-0.5,
     severity="high",
+    season="primera",
 )
 
 
@@ -138,16 +141,39 @@ class TestCurrentStatus:
         assert years_this == {2018}
         assert years_hist == {2015}
 
-    def test_season_year_overrides_calendar_year(self, tmp_storage, es_departments):
-        # Mar 2016 is before primera starts, so the season on screen is 2015's.
+    def test_span_sets_the_season_year(self, tmp_storage, es_departments):
+        # Mar 2016 is between seasons; the span on screen is primera 2015.
         _seed_morazan([(date(2015, 7, 20), -2.0)], [(date(2015, 7, 20), -1.0)])
-        status = triggers.current_status(today=date(2016, 3, 1), trigger=TRIGGER,
-                                         season_year=2015)
+        span = season.SeasonSpan("primera", 2015, date(2015, 4, 20), date(2015, 8, 31), False)
+        status = triggers.current_status(today=date(2016, 3, 1), trigger=TRIGGER, span=span)
         assert {f["year"] for f in status["fires_this_year"]} == {2015}
         assert status["fires_history"] == []
+        assert status["window_passed"] is True
+
+    def test_season_without_trigger_has_no_status(self, tmp_storage, es_departments, monkeypatch):
+        monkeypatch.setattr(triggers, "CALIBRATED_TRIGGERS", [TRIGGER])  # primera only
+        span = season.SeasonSpan("postrera", 2026, date(2026, 9, 1), date(2027, 1, 31), True)
+        assert triggers.current_status(today=date(2026, 10, 1), span=span) is None
+
+
+class TestTriggerVariants:
+    def test_rainfall_only_trigger_ignores_soil_moisture(self, tmp_storage, es_departments):
+        _write("chirps", "Morazan", "spi_3", [(date(2015, 7, 20), -2.0)])
+        trig = dataclasses.replace(TRIGGER, rzsm_threshold=None)
+        (fire,) = triggers.evaluate_history(trig)
+        assert fire.first_date == date(2015, 7, 20)
+        assert fire.season == "primera"
+
+    def test_spi_column_selects_the_scale(self, tmp_storage, es_departments):
+        _write("chirps", "Morazan", "spi_1", [(date(2015, 9, 20), -2.0)])
+        _write("smap", "Morazan", "value_anom_z", [(date(2015, 9, 20), -1.0)])
+        trig = dataclasses.replace(TRIGGER, spi_column="spi_1", window_doy=(250, 300))
+        assert [f.year for f in triggers.evaluate_history(trig)] == [2015]
+        assert triggers.evaluate_history(dataclasses.replace(trig, spi_column="spi_3")) == []
 
 
 @pytest.mark.parametrize("country", sorted(triggers.TRIGGERS_BY_COUNTRY))
-def test_trigger_window_is_the_configured_silking_window(country):
+def test_trigger_window_is_its_seasons_alert_window(country):
+    seasons = {s["key"]: s for s in config.COUNTRIES[country]["seasons"]}
     for trig in triggers.TRIGGERS_BY_COUNTRY[country]:
-        assert trig.window_doy == config.COUNTRIES[country]["silking_window"]
+        assert trig.window_doy == seasons[trig.season]["alert_window_doy"]

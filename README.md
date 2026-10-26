@@ -198,7 +198,9 @@ the scheduler already does the same work daily.
 ## Trigger calibration
 
 Alerts fire when **SPI-3 < threshold AND SMAP root-zone anomaly < threshold**
-in any one of the country's departments during the silking window.
+in any one of the country's departments during the season's alert window.
+Each country has two growing seasons; an alert stays on for the rest of the
+season it fires in and resets when the next season starts.
 Operating points are calibrated per-country against labeled historical drought
 events:
 

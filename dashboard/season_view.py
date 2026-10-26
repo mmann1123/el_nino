@@ -11,9 +11,8 @@ from datetime import date
 
 import streamlit as st
 
-from .. import config
-from ..etl import season
-from . import i18n
+from ..etl import season, triggers
+from . import alerts, i18n
 
 ALERT_COLOR = "#c62828"
 CONFIRMED_COLOR = "#7f0000"
@@ -82,7 +81,7 @@ def _alert_line(alert_only: list[season.SeasonEntry], has_confirm: bool) -> str:
 
 
 def _layout(rec: season.SeasonRecord) -> str:
-    has_confirm = bool(config.CC.get("confirm_rule"))
+    has_confirm = rec.has_confirm
     confirmed, alert_only = _split(rec.entries)
     parts = []
     if confirmed:
@@ -92,13 +91,20 @@ def _layout(rec: season.SeasonRecord) -> str:
     return "".join(parts)
 
 
+def _previous_line(prev: season.SeasonSummary) -> str:
+    """Muted context only: the last season's outcome never carries over."""
+    text = i18n.t("season_previous", season=i18n.t(f"season_{prev.key}"), year=prev.year,
+                  n_confirmed=prev.n_confirmed, n_alert=prev.n_alert_only)
+    return f"<div style='color:#78909c;font-size:0.9em;padding:2px 2px 8px;'>{text}</div>"
+
+
 def _body(rec: season.SeasonRecord) -> None:
     if rec.entries:
         st.markdown(_layout(rec), unsafe_allow_html=True)
     else:
         st.markdown(i18n.t("season_none", depts=i18n.dept_term(plural=True)))
-    key = "season_caption" if config.CC.get("confirm_rule") else "season_caption_alert_only"
-    st.caption(i18n.t(key, dept=i18n.dept_term()))
+    key = "season_caption" if rec.has_confirm else "season_caption_alert_only"
+    st.caption(i18n.t(key, dept=i18n.dept_term(), rule=alerts.rule_text(triggers.trigger_for(rec.key))))
 
 
 def render(today_: date) -> None:
@@ -109,4 +115,6 @@ def render(today_: date) -> None:
     span = f"{i18n.fmt_mon_day(rec.start)} – {i18n.fmt_mon_day(rec.end)}"
     key = "season_header_active" if rec.active else "season_header_ended"
     st.markdown(i18n.t(key, season=name, year=rec.year, span=span))
+    if rec.active and rec.previous is not None:
+        st.markdown(_previous_line(rec.previous), unsafe_allow_html=True)
     _body(rec)

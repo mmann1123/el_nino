@@ -825,11 +825,22 @@ STRINGS: dict[str, dict[str, str]] = {
               "et intégrez la configuration recommandée dans `etl/triggers.py`.",
     },
     # ---- "This season" panel (dashboard/season_view.py) ----
-    "season_primera": {"en": "Primera", "es": "Primera", "fr": "Primera"},
-    "season_printemps_ete": {
-        "en": "Spring–summer season",
-        "es": "Temporada de primavera–verano",
-        "fr": "Saison printemps–été",
+    "season_primera": {
+        "en": "Primera (first season)",
+        "es": "Primera",
+        "fr": "Primera (première saison)",
+    },
+    "season_postrera": {
+        "en": "Postrera (second season)",
+        "es": "Postrera",
+        "fr": "Postrera (deuxième saison)",
+    },
+    "season_printemps": {"en": "Spring season", "es": "Temporada de primavera", "fr": "Saison de printemps"},
+    "season_automne": {"en": "Autumn season", "es": "Temporada de otoño", "fr": "Saison d'automne"},
+    "season_previous": {
+        "en": "Previous season, {season} {year}: {n_confirmed} confirmed, {n_alert} with an alert only. For reference only: this season started fresh.",
+        "es": "Temporada anterior, {season} {year}: {n_confirmed} confirmados, {n_alert} solo con alerta. Solo como referencia: esta temporada empezó de cero.",
+        "fr": "Saison précédente, {season} {year} : {n_confirmed} confirmés, {n_alert} en alerte seulement. À titre indicatif : cette saison est repartie de zéro.",
     },
     "season_header_active": {
         "en": "**This season — {season} {year}** ({span})",
@@ -866,39 +877,24 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "{label} ({n}) :",
     },
     "season_caption": {
-        "en": "**Alert** — the date the drought alert below first fired: 3-month rainfall and "
-              "root-zone soil moisture both very dry during silking, in any {dept}. "
-              "**Confirmed** — crop water use (evapotranspiration over cropland) far below normal "
-              "for two dekads (10-day periods) in a row, July–August; the crop is visibly "
-              "stressed. The date shown is the second of those dekads. A {dept} stays listed "
-              "until the season ends.",
-        "es": "**Alerta**: la fecha en que se activó por primera vez la alerta de sequía de abajo: "
-              "lluvia de 3 meses y humedad del suelo en la zona de raíces muy secas durante la "
-              "floración, en cualquier {dept}. **Confirmado**: uso de agua del cultivo "
-              "(evapotranspiración sobre tierras de cultivo) muy por debajo de lo normal durante "
-              "dos décadas (períodos de 10 días) seguidas, julio–agosto; el cultivo muestra "
-              "estrés. La fecha indicada es la segunda de esas décadas. Un {dept} permanece en la "
-              "lista hasta que termina la temporada.",
-        "fr": "**Alerte** : la date du premier déclenchement de l'alerte sécheresse ci-dessous : "
-              "pluie sur 3 mois et humidité du sol dans la zone racinaire très sèches pendant la "
-              "floraison, dans n'importe quel {dept}. **Confirmé** : consommation d'eau des "
-              "cultures (évapotranspiration sur les terres cultivées) très inférieure à la normale "
-              "deux décades (périodes de 10 jours) de suite, juillet–août ; la culture est en "
-              "stress. La date affichée est la seconde de ces décades. Un {dept} reste listé "
-              "jusqu'à la fin de la saison.",
+        "en": "**Alert** — the date the drought alert below first went off: {rule}, in any {dept}. **Confirmed** — the crop is using far less water than normal (measured by satellite over farmland) for two 10-day periods in a row, July–August; the crop is visibly stressed. The date shown is the second of those 10-day periods. A {dept} stays listed until the season ends.",
+        "es": "**Alerta**: la fecha en que se activó por primera vez la alerta de sequía de abajo: {rule}, en cualquier {dept}. **Confirmado**: el cultivo usa mucha menos agua de lo normal (medido por satélite sobre tierras de cultivo) durante dos períodos de 10 días seguidos, julio–agosto; el cultivo muestra estrés. La fecha indicada es el segundo de esos períodos. Un {dept} permanece en la lista hasta que termina la temporada.",
+        "fr": "**Alerte** : la date du premier déclenchement de l'alerte sécheresse ci-dessous : {rule}, dans n'importe quel {dept}. **Confirmé** : la culture consomme beaucoup moins d'eau que la normale (mesuré par satellite sur les terres cultivées) pendant deux périodes de 10 jours de suite, juillet–août ; la culture est en stress. La date affichée est la seconde de ces périodes. Un {dept} reste listé jusqu'à la fin de la saison.",
     },
     "season_caption_alert_only": {
-        "en": "Dates are when the drought alert below first fired (3-month rainfall and "
-              "root-zone soil moisture both very dry during silking, in any {dept}). "
-              "A {dept} stays listed until the season ends.",
-        "es": "Las fechas indican cuándo se activó por primera vez la alerta de sequía de abajo "
-              "(lluvia de 3 meses y humedad del suelo en la zona de raíces muy secas durante la "
-              "floración, en cualquier {dept}). Un {dept} permanece en la lista hasta que "
-              "termina la temporada.",
-        "fr": "Les dates indiquent le premier déclenchement de l'alerte sécheresse ci-dessous "
-              "(pluie sur 3 mois et humidité du sol dans la zone racinaire très sèches pendant "
-              "la floraison, dans n'importe quel {dept}). Un {dept} reste listé jusqu'à la "
-              "fin de la saison.",
+        "en": "Dates are when the drought alert below first went off ({rule}, in any {dept}). A {dept} stays listed until the season ends.",
+        "es": "Las fechas indican cuándo se activó por primera vez la alerta de sequía de abajo ({rule}, en cualquier {dept}). Un {dept} permanece en la lista hasta que termina la temporada.",
+        "fr": "Les dates indiquent le premier déclenchement de l'alerte sécheresse ci-dessous ({rule}, dans n'importe quel {dept}). Un {dept} reste listé jusqu'à la fin de la saison.",
+    },
+    "alert_not_calibrated_season": {
+        "en": "No drought alert has been set up for {season} {year} yet. The season panel and current conditions still update.",
+        "es": "Todavía no se ha configurado una alerta de sequía para {season} {year}. El panel de la temporada y las condiciones actuales siguen actualizándose.",
+        "fr": "Aucune alerte sécheresse n'est encore en place pour {season} {year}. Le panneau de la saison et les conditions actuelles restent à jour.",
+    },
+    "alert_provisional": {
+        "en": "Provisional: the {season} alert was set using {n} past droughts with written reports ({years}). Treat it as an early warning, not a confirmed drought; it will be reviewed as more seasons are documented.",
+        "es": "Provisional: la alerta de {season} se definió con {n} sequías pasadas documentadas en informes ({years}). Tómela como un aviso temprano, no como una sequía confirmada; se revisará a medida que se documenten más temporadas.",
+        "fr": "Provisoire : l'alerte {season} a été établie à partir de {n} sécheresses passées documentées dans des rapports ({years}). Considérez-la comme un avertissement précoce, pas comme une sécheresse confirmée ; elle sera revue à mesure que d'autres saisons seront documentées.",
     },
     "alert_header": {"en": "### Drought alert", "es": "### Alerta de sequía", "fr": "### Alerte sécheresse"},
     "alert_pill_alert": {
@@ -928,9 +924,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Les semaines critiques de croissance sont en cours ({start}–{end})",
     },
     "alert_pill_clear": {
-        "en": "All clear for this year's growing season",
-        "es": "Sin alerta para la temporada de cultivo de este año",
-        "fr": "Rien à signaler pour la saison de culture de cette année",
+        "en": "All clear for this growing season",
+        "es": "Sin alerta para esta temporada de cultivo",
+        "fr": "Rien à signaler pour cette saison de culture",
     },
     "alert_pill_clear_sub": {
         "en": "The {year} critical window passed without the alert triggering.",
@@ -953,35 +949,92 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "**En ce moment (à l'échelle du pays) :**",
     },
     "alert_explain": {
-        "en": "**What sets off this alert.** When rainfall has been **very dry for "
-              "the last 3 months** *and* **soil moisture is below normal**, all at "
-              "the same time during the critical growth window "
-              "(**{start} to {end}**). This is when rainfed crops in {country} are "
+        "en": "**What sets off this alert.** When {condition} during the critical growth "
+              "window (**{start} to {end}**). This is when rainfed crops in {country} are "
               "most vulnerable to drought — water stress during this window translates "
               "directly into yield loss, above all in the {priority} ({names}).",
-        "es": "**Qué activa esta alerta.** Cuando la lluvia ha sido **muy escasa durante "
-              "los últimos 3 meses** *y* **la humedad del suelo está por debajo de lo normal**, "
-              "ambas al mismo tiempo durante la ventana crítica de crecimiento "
-              "(**{start} al {end}**). Es cuando los cultivos de secano en {country} son "
-              "más vulnerables a la sequía — el estrés hídrico en esta ventana se traduce "
+        "es": "**Qué activa esta alerta.** Cuando {condition} durante la ventana crítica de "
+              "crecimiento (**{start} al {end}**). Es cuando los cultivos de secano en {country} "
+              "son más vulnerables a la sequía — el estrés hídrico en esta ventana se traduce "
               "directamente en pérdida de rendimiento, sobre todo en el {priority} ({names}).",
-        "fr": "**Ce qui déclenche cette alerte.** Lorsque la pluie a été **très faible pendant "
-              "les 3 derniers mois** *et* que **l'humidité du sol est sous la normale**, "
-              "en même temps, pendant la fenêtre critique de croissance "
-              "(**du {start} au {end}**). C'est à ce moment que les cultures pluviales de "
-              "{country} sont les plus vulnérables à la sécheresse — le stress hydrique pendant "
-              "cette fenêtre se traduit directement par des pertes de rendement, surtout dans "
-              "les {priority} ({names}).",
+        "fr": "**Ce qui déclenche cette alerte.** Lorsque {condition} pendant la fenêtre "
+              "critique de croissance (**du {start} au {end}**). C'est à ce moment que les "
+              "cultures pluviales de {country} sont les plus vulnérables à la sécheresse — le "
+              "stress hydrique pendant cette fenêtre se traduit directement par des pertes de "
+              "rendement, surtout dans les {priority} ({names}).",
+    },
+    "alert_cond_rain_soil": {
+        "en": "rainfall has been **{rain}** *and* **soil moisture is below normal** at the same time",
+        "es": "la lluvia ha sido **{rain}** *y* **la humedad del suelo está por debajo de lo normal** al mismo tiempo",
+        "fr": "la pluie a été **{rain}** *et* que **l'humidité du sol est sous la normale** en même temps",
+    },
+    "alert_cond_rain": {
+        "en": "rainfall has been **{rain}**",
+        "es": "la lluvia ha sido **{rain}**",
+        "fr": "la pluie a été **{rain}**",
+    },
+    "rain_spi_3": {
+        "en": "very low over the last 3 months",
+        "es": "muy escasa en los últimos 3 meses",
+        "fr": "très faible au cours des 3 derniers mois",
+    },
+    "rain_spi_1": {
+        "en": "very low over the last month",
+        "es": "muy escasa en el último mes",
+        "fr": "très faible au cours du dernier mois",
+    },
+    "rule_short_rain_soil": {
+        "en": "rainfall {rain} and soil moisture both very low during the alert period",
+        "es": "lluvia {rain} y humedad del suelo muy bajas durante el período de alerta",
+        "fr": "pluie {rain} et humidité du sol très basses pendant la période d'alerte",
+    },
+    "rule_short_rain": {
+        "en": "rainfall {rain} very low during the alert period",
+        "es": "lluvia {rain} muy baja durante el período de alerta",
+        "fr": "pluie {rain} très faible pendant la période d'alerte",
+    },
+    "rain_short_spi_3": {
+        "en": "over the last 3 months",
+        "es": "de los últimos 3 meses",
+        "fr": "des 3 derniers mois",
+    },
+    "rain_short_spi_1": {
+        "en": "over the last month",
+        "es": "del último mes",
+        "fr": "du dernier mois",
+    },
+    "reading_rain_label_spi_1": {
+        "en": "Rainfall (last month)",
+        "es": "Lluvia (último mes)",
+        "fr": "Pluie (dernier mois)",
     },
     "alert_show_triggered": {
         "en": "Show triggered {depts}",
         "es": "Mostrar {depts} con alerta",
         "fr": "Afficher les {depts} en alerte",
     },
+    "alert_scores_note": {
+        "en": "Scores compare each place with what is usual for this time of year: 0 is normal, "
+              "below 0 is drier than usual, and −1.5 or lower is very dry.",
+        "es": "Los puntajes comparan cada lugar con lo habitual para esta época del año: 0 es normal, "
+              "por debajo de 0 es más seco de lo habitual y −1.5 o menos es muy seco.",
+        "fr": "Les scores comparent chaque lieu à ce qui est habituel à cette période de l'année : 0 est "
+              "normal, en dessous de 0 est plus sec que d'habitude, et −1,5 ou moins est très sec.",
+    },
+    "alert_triggered_row_rain": {
+        "en": "- **{dep}** — rainfall score `{spi}`, on {date}",
+        "es": "- **{dep}** — puntaje de lluvia `{spi}`, el {date}",
+        "fr": "- **{dep}** — score de pluie `{spi}`, le {date}",
+    },
+    "alert_triggered_row_frozen": {
+        "en": "- **{dep}** — first fired on {date}",
+        "es": "- **{dep}** — se activó por primera vez el {date}",
+        "fr": "- **{dep}** — premier déclenchement le {date}",
+    },
     "alert_triggered_row": {
-        "en": "- **{dep}** — rainfall index `{spi}`, soil moisture `{rzsm}σ`, on {date}",
-        "es": "- **{dep}** — índice de lluvia `{spi}`, humedad del suelo `{rzsm}σ`, el {date}",
-        "fr": "- **{dep}** — indice de pluie `{spi}`, humidité du sol `{rzsm}σ`, le {date}",
+        "en": "- **{dep}** — rainfall score `{spi}`, soil moisture score `{rzsm}`, on {date}",
+        "es": "- **{dep}** — puntaje de lluvia `{spi}`, puntaje de humedad del suelo `{rzsm}`, el {date}",
+        "fr": "- **{dep}** — score de pluie `{spi}`, score d'humidité du sol `{rzsm}`, le {date}",
     },
     "alert_confidence_heading": {
         "en": "How confident is this alert? (based on {n} years of data)",

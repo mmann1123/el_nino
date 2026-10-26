@@ -85,8 +85,10 @@ time, filtered to the active country.
 **Layers:**
 - [config.py](config.py) — the single source of country differences. The
   `COUNTRIES` registry holds AOI filename, map center, ADM1 term, priority
-  departments, silking window, and labeled historical drought events per
-  country; the active entry is exposed as `config.CC`. **Add a country** by
+  departments, and two back-to-back growing `seasons` per country (ES
+  primera/postrera, HT printemps/automne), each with its own alert window,
+  optional Confirmed rule and labeled drought years; the active entry is
+  exposed as `config.CC`. **Add a country** by
   appending one entry and running `COUNTRY=<key> python -m el_nino.etl.aoi.fetch_aoi`.
 - [etl/storage.py](etl/storage.py) — all reads/writes go through `STORAGE_ROOT`,
   which is a local path by default and a gcsfuse mount (`/mnt/gcs`) in Cloud
@@ -97,11 +99,17 @@ time, filtered to the active country.
   sizes tuned to stay under GEE's ~5000-feature `getInfo()` ceiling. `backfill`
   retries by halving the chunk on `EEException`. Register new ones in
   `etl/indicators/__init__.py`'s `INDICATORS` dict.
-- [etl/triggers.py](etl/triggers.py) — `CalibratedTrigger` fires when SPI-3 AND
-  SMAP root-zone anomaly are both below per-country thresholds during the
-  silking window. Operating points live in `TRIGGERS_BY_COUNTRY`, calibrated by
+- [etl/triggers.py](etl/triggers.py) — `CalibratedTrigger` (one per season)
+  fires when SPI (`spi_column`) AND, unless rainfall-only, the SMAP root-zone
+  anomaly are below their thresholds inside the season's alert window.
+  Operating points live in `TRIGGERS_BY_COUNTRY`, calibrated by
   [experiments/trigger_calibration.py](experiments/trigger_calibration.py)
-  against `config.CC['labeled_events']`.
+  against the season's `labeled_events`; a season without one has no alert.
+- [etl/season.py](etl/season.py) — the season on screen (`current_span`) for
+  both the alert banner and the "This season" panel. Fires are sticky within
+  a season and reset when the next one starts; between seasons the last one
+  is recapped. Closed seasons are frozen in `season_history.json` by
+  [etl/season_history.py](etl/season_history.py) at the end of `finalize`.
 - [etl/refresh_check.py](etl/refresh_check.py) — `run()` is a manual catch-up
   utility (one cheap `aggregate_max` getInfo per indicator decides whether a
   heavier fetch is needed); `_update_freshness()` writes `freshness.json` and is
