@@ -140,7 +140,7 @@ drives:
 - AOI geojson filename → `departamentos_es.geojson` / `departamentos_ht.geojson`
 - Map center + zoom
 - Native ADM1 term (`departamento` / `département`) used in UI labels and tooltips
-- Priority departments (the drought-vulnerable focal set for alerts and calibration)
+- Priority departments (the drought-vulnerable focal set highlighted in the UI)
 - Silking / growth window for the calibrated trigger
 - Labeled historical drought events for calibration scoring
 - Default dashboard language (`es` for El Salvador, `fr` for Haiti). The
@@ -198,7 +198,9 @@ the scheduler already does the same work daily.
 ## Trigger calibration
 
 Alerts fire when **SPI-3 < threshold AND SMAP root-zone anomaly < threshold**
-in any one of the country's priority departments during the silking window.
+in any one of the country's departments during the season's alert window.
+Each country has two growing seasons; an alert stays on for the rest of the
+season it fires in and resets when the next season starts.
 Operating points are calibrated per-country against labeled historical drought
 events:
 
@@ -206,7 +208,8 @@ events:
 |---|---|---|
 | Window | DOY 196-227 (mid-Jul to mid-Aug) | DOY 152-227 (Jun 1 to Aug 15) |
 | SPI-3 threshold | < −1.5 | < −1.3 |
-| SMAP RZSM threshold | < −0.5σ | < −0.5σ |
+| SMAP RZSM threshold | < −1.0σ | < −0.5σ |
+| Recall | 100% (2015, 2018, 2023, 2026) | 67% (2015, 2018) |
 | Severe recall | 100% (catches 2015) | 100% (catches 2015) |
 | Precision | 100% | 40% |
 | FP / decade | 0.0 | 2.7 |

@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 
 from .. import config
 from ..etl import storage
-from . import drought_status, i18n
+from . import drought_status, freshness, i18n
 
 # Active country's rough center + zoom for the mini-map. Both come from
 # config.COUNTRIES[COUNTRY] so a new country just needs a registry entry.
@@ -94,6 +94,7 @@ def departamento_status_figure(
         return None
 
     latest_anom = _latest_anom_per_departamento(indicator_name)
+    stale = freshness.is_stale(indicator_name, config.today())
 
     # Use the SAME discrete U.S. Drought Monitor tiers + colors as the badges
     # in the dashboard panels — this is the only way the map's visual color
@@ -104,7 +105,7 @@ def departamento_status_figure(
     for feat in gj["features"]:
         dep = feat["properties"].get("ADM1_NAME", "")
         z = latest_anom.get(dep)
-        cat = drought_status.classify(z)
+        cat = drought_status.STALE if stale else drought_status.classify(z)
         rows.append({
             "departamento": dep,
             "status_label": cat.label,
@@ -120,6 +121,7 @@ def departamento_status_figure(
         drought_status.D0, drought_status.D1, drought_status.D2,
         drought_status.D3, drought_status.D4,
         drought_status.PENDING,
+        drought_status.STALE,
     ]
     color_map = {cat.label: cat.color for cat in all_cats}
     # Force the legend order — wet to dry — so the choropleth's internal
@@ -145,7 +147,7 @@ def departamento_status_figure(
         },
         labels={
             "status_label": i18n.t("map_status"),
-            "departamento": config.CC["dept_term"].capitalize(),
+            "departamento": i18n.dept_term().capitalize(),
             "z_display": i18n.t("map_anomaly"),
         },
     )

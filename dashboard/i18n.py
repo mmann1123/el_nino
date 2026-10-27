@@ -64,6 +64,14 @@ def current_lang() -> str:
     return _offline_lang
 
 
+def dept_term(plural: bool = False) -> str:
+    """The word for an ADM1 unit: the country's own ("departamento",
+    "département") in its language, "department" in English."""
+    if current_lang() == "en":
+        return "departments" if plural else "department"
+    return config.CC["dept_term_plural" if plural else "dept_term"]
+
+
 def set_offline_lang(lang: str) -> None:
     """Force the language when no Streamlit session exists (tests)."""
     global _offline_lang
@@ -208,6 +216,14 @@ def fmt_mon_day(d) -> str:
     return f"{ts.day:02d} {month_abbr(ts.month)}"
 
 
+def fmt_day_range(start, end) -> str:
+    """'Jul 11–20' / '11–20 jul' / '11–20 juil.' — both days in the same month."""
+    a, b = _ts(start), _ts(end)
+    if current_lang() == "en":
+        return f"{month_abbr(a.month)} {a.day:02d}–{b.day:02d}"
+    return f"{a.day:02d}–{b.day:02d} {month_abbr(a.month)}"
+
+
 def fmt_mon_year(d) -> str:
     """'Aug 2026' / 'ago 2026' / 'août 2026'"""
     ts = _ts(d)
@@ -343,16 +359,22 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "ind_wapor_help": {
         "en": "**Actual evapotranspiration (ETa)** — water actually leaving the soil "
-              "and crop canopy. Low ETa during the growing season confirms crop stress. "
-              "Lags rainfall/soil moisture by ~10 days. Source: FAO WAPOR v3.",
+              "and crop canopy, averaged over **cropland only** so forest and other "
+              "vegetation don't hide crop stress. Low ETa during the growing season "
+              "confirms crop stress. Lags rainfall/soil moisture by ~10 days. "
+              "Source: FAO WAPOR v3; cropland from ESA WorldCover.",
         "es": "**Evapotranspiración real (ETa)** — agua que realmente sale del suelo y del "
-              "dosel del cultivo. Una ETa baja durante la temporada de crecimiento confirma "
-              "estrés en el cultivo. Se retrasa ~10 días respecto a la lluvia/humedad del "
-              "suelo. Fuente: FAO WAPOR v3.",
+              "dosel del cultivo, promediada **solo sobre tierras de cultivo** para que el "
+              "bosque y otra vegetación no oculten el estrés del cultivo. Una ETa baja durante "
+              "la temporada de crecimiento confirma estrés en el cultivo. Se retrasa ~10 días "
+              "respecto a la lluvia/humedad del suelo. Fuente: FAO WAPOR v3; tierras de "
+              "cultivo de ESA WorldCover.",
         "fr": "**Évapotranspiration réelle (ETa)** — eau qui quitte effectivement le sol et "
-              "le couvert végétal. Une ETa faible pendant la saison de croissance confirme "
-              "le stress des cultures. Décalage d'environ 10 jours par rapport à la "
-              "pluie/l'humidité du sol. Source : FAO WAPOR v3.",
+              "le couvert végétal, moyennée **sur les terres cultivées uniquement** pour que la "
+              "forêt et les autres végétations ne masquent pas le stress des cultures. Une ETa "
+              "faible pendant la saison de croissance confirme le stress des cultures. Décalage "
+              "d'environ 10 jours par rapport à la pluie/l'humidité du sol. Source : FAO WAPOR "
+              "v3 ; terres cultivées d'ESA WorldCover.",
     },
     "ind_imerg_help": {
         "en": "**Daily rainfall** at finer temporal/spatial resolution than CHIRPS. "
@@ -686,6 +708,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "es": "Aún no hay datos suficientes para clasificar. La línea base histórica o las observaciones recientes todavía se están calculando.",
         "fr": "Pas encore assez de données pour classer. La référence historique ou les observations récentes sont encore en cours de calcul.",
     },
+    "cat_stale_label": {"en": "No recent data", "es": "Sin datos recientes", "fr": "Pas de données récentes"},
+    "cat_stale_desc": {
+        "en": "The latest observation is more than three update cycles old, so no current reading is shown.",
+        "es": "La última observación tiene más de tres ciclos de actualización de antigüedad, por lo que no se muestra una lectura actual.",
+        "fr": "La dernière observation date de plus de trois cycles de mise à jour ; aucune lecture actuelle n'est affichée.",
+    },
     "cat_normal_label": {"en": "Normal", "es": "Normal", "fr": "Normal"},
     "cat_normal_desc": {
         "en": "Conditions are within the typical range for this time of year.",
@@ -796,6 +824,78 @@ STRINGS: dict[str, dict[str, str]] = {
               "Lancez `COUNTRY=<key> python -m el_nino.experiments.trigger_calibration` "
               "et intégrez la configuration recommandée dans `etl/triggers.py`.",
     },
+    # ---- "This season" panel (dashboard/season_view.py) ----
+    "season_primera": {
+        "en": "Primera (first season)",
+        "es": "Primera",
+        "fr": "Primera (première saison)",
+    },
+    "season_postrera": {
+        "en": "Postrera (second season)",
+        "es": "Postrera",
+        "fr": "Postrera (deuxième saison)",
+    },
+    "season_printemps": {"en": "Spring season", "es": "Temporada de primavera", "fr": "Saison de printemps"},
+    "season_automne": {"en": "Autumn season", "es": "Temporada de otoño", "fr": "Saison d'automne"},
+    "season_header_previous": {
+        "en": "**Previous season — {season} {year}** ({span}, ended)",
+        "es": "**Temporada anterior — {season} {year}** ({span}, terminada)",
+        "fr": "**Saison précédente — {season} {year}** ({span}, terminée)",
+    },
+    "season_header_active": {
+        "en": "**This season — {season} {year}** ({span})",
+        "es": "**Esta temporada — {season} {year}** ({span})",
+        "fr": "**Cette saison — {season} {year}** ({span})",
+    },
+    "season_header_ended": {
+        "en": "**Last season — {season} {year}** ({span}, ended; shown until the next season starts)",
+        "es": "**Temporada pasada — {season} {year}** ({span}, terminada; se muestra hasta que empiece la próxima temporada)",
+        "fr": "**Saison passée — {season} {year}** ({span}, terminée ; affichée jusqu'au début de la saison suivante)",
+    },
+    "season_none": {
+        "en": "None of the {depts} has triggered this season.",
+        "es": "Ninguno de los {depts} ha activado una señal esta temporada.",
+        "fr": "Aucun des {depts} n'a déclenché de signal cette saison.",
+    },
+    "season_alert_label": {"en": "Alert", "es": "Alerta", "fr": "Alerte"},
+    "season_confirmed_header": {
+        "en": "Confirmed — crop stress ({n})",
+        "es": "Confirmado — estrés del cultivo ({n})",
+        "fr": "Confirmé — stress des cultures ({n})",
+    },
+    "season_row_alert": {"en": "alert {date}", "es": "alerta {date}", "fr": "alerte {date}"},
+    "season_row_confirmed": {"en": "confirmed", "es": "confirmado", "fr": "confirmé"},
+    "season_alert_only_label": {"en": "Alert only", "es": "Solo alerta", "fr": "Alerte seule"},
+    "season_alert_since": {
+        "en": "{label} since {date} ({n}):",
+        "es": "{label} desde {date} ({n}):",
+        "fr": "{label} depuis le {date} ({n}) :",
+    },
+    "season_alert_group": {
+        "en": "{label} ({n}):",
+        "es": "{label} ({n}):",
+        "fr": "{label} ({n}) :",
+    },
+    "season_caption": {
+        "en": "**Alert** — the date the drought alert below first went off: {rule}, in any {dept}. **Confirmed** — the crop is using far less water than normal (measured by satellite over farmland) for two 10-day periods in a row, July–August; the crop is visibly stressed. The date shown is the second of those 10-day periods. A {dept} stays listed until the season ends.",
+        "es": "**Alerta**: la fecha en que se activó por primera vez la alerta de sequía de abajo: {rule}, en cualquier {dept}. **Confirmado**: el cultivo usa mucha menos agua de lo normal (medido por satélite sobre tierras de cultivo) durante dos períodos de 10 días seguidos, julio–agosto; el cultivo muestra estrés. La fecha indicada es el segundo de esos períodos. Un {dept} permanece en la lista hasta que termina la temporada.",
+        "fr": "**Alerte** : la date du premier déclenchement de l'alerte sécheresse ci-dessous : {rule}, dans n'importe quel {dept}. **Confirmé** : la culture consomme beaucoup moins d'eau que la normale (mesuré par satellite sur les terres cultivées) pendant deux périodes de 10 jours de suite, juillet–août ; la culture est en stress. La date affichée est la seconde de ces périodes. Un {dept} reste listé jusqu'à la fin de la saison.",
+    },
+    "season_caption_alert_only": {
+        "en": "Dates are when the drought alert below first went off ({rule}, in any {dept}). A {dept} stays listed until the season ends.",
+        "es": "Las fechas indican cuándo se activó por primera vez la alerta de sequía de abajo ({rule}, en cualquier {dept}). Un {dept} permanece en la lista hasta que termina la temporada.",
+        "fr": "Les dates indiquent le premier déclenchement de l'alerte sécheresse ci-dessous ({rule}, dans n'importe quel {dept}). Un {dept} reste listé jusqu'à la fin de la saison.",
+    },
+    "alert_not_calibrated_season": {
+        "en": "No drought alert has been set up for {season} {year} yet. The season panel and current conditions still update.",
+        "es": "Todavía no se ha configurado una alerta de sequía para {season} {year}. El panel de la temporada y las condiciones actuales siguen actualizándose.",
+        "fr": "Aucune alerte sécheresse n'est encore en place pour {season} {year}. Le panneau de la saison et les conditions actuelles restent à jour.",
+    },
+    "alert_provisional": {
+        "en": "Provisional: the {season} alert was set using {n} past droughts with written reports ({years}). Treat it as an early warning, not a confirmed drought; it will be reviewed as more seasons are documented.",
+        "es": "Provisional: la alerta de {season} se definió con {n} sequías pasadas documentadas en informes ({years}). Tómela como un aviso temprano, no como una sequía confirmada; se revisará a medida que se documenten más temporadas.",
+        "fr": "Provisoire : l'alerte {season} a été établie à partir de {n} sécheresses passées documentées dans des rapports ({years}). Considérez-la comme un avertissement précoce, pas comme une sécheresse confirmée ; elle sera revue à mesure que d'autres saisons seront documentées.",
+    },
     "alert_header": {"en": "### Drought alert", "es": "### Alerta de sequía", "fr": "### Alerte sécheresse"},
     "alert_pill_alert": {
         "en": "ALERT — drought conditions met",
@@ -803,9 +903,19 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "ALERTE — conditions de sécheresse atteintes",
     },
     "alert_pill_alert_sub": {
-        "en": "Triggered in {n} {dep_word} so far this year",
-        "es": "Activada en {n} {dep_word} en lo que va del año",
-        "fr": "Déclenchée dans {n} {dep_word} depuis le début de l'année",
+        "en": "Triggered in {n} {dep_word} so far this season",
+        "es": "Activada en {n} {dep_word} en lo que va de la temporada",
+        "fr": "Déclenchée dans {n} {dep_word} depuis le début de la saison",
+    },
+    "alert_pill_ended": {
+        "en": "Season over — the alert fired",
+        "es": "Temporada terminada — la alerta se activó",
+        "fr": "Saison terminée — l'alerte s'est déclenchée",
+    },
+    "alert_pill_ended_sub": {
+        "en": "Triggered in {n} {dep_word} during {season} {year}",
+        "es": "Activada en {n} {dep_word} durante {season} {year}",
+        "fr": "Déclenchée dans {n} {dep_word} pendant {season} {year}",
     },
     "alert_pill_watching": {"en": "Watching closely", "es": "En vigilancia", "fr": "Sous surveillance"},
     "alert_pill_watching_sub": {
@@ -814,9 +924,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Les semaines critiques de croissance sont en cours ({start}–{end})",
     },
     "alert_pill_clear": {
-        "en": "All clear for this year's growing season",
-        "es": "Sin alerta para la temporada de cultivo de este año",
-        "fr": "Rien à signaler pour la saison de culture de cette année",
+        "en": "All clear for this growing season",
+        "es": "Sin alerta para esta temporada de cultivo",
+        "fr": "Rien à signaler pour cette saison de culture",
     },
     "alert_pill_clear_sub": {
         "en": "The {year} critical window passed without the alert triggering.",
@@ -839,35 +949,92 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "**En ce moment (à l'échelle du pays) :**",
     },
     "alert_explain": {
-        "en": "**What sets off this alert.** When rainfall has been **very dry for "
-              "the last 3 months** *and* **soil moisture is below normal**, all at "
-              "the same time during the critical growth window "
-              "(**{start} to {end}**). This is when rainfed crops in {country} are "
+        "en": "**What sets off this alert.** When {condition} during the critical growth "
+              "window (**{start} to {end}**). This is when rainfed crops in {country} are "
               "most vulnerable to drought — water stress during this window translates "
-              "directly into yield loss in the {priority} ({names}).",
-        "es": "**Qué activa esta alerta.** Cuando la lluvia ha sido **muy escasa durante "
-              "los últimos 3 meses** *y* **la humedad del suelo está por debajo de lo normal**, "
-              "ambas al mismo tiempo durante la ventana crítica de crecimiento "
-              "(**{start} al {end}**). Es cuando los cultivos de secano en {country} son "
-              "más vulnerables a la sequía — el estrés hídrico en esta ventana se traduce "
-              "directamente en pérdida de rendimiento en el {priority} ({names}).",
-        "fr": "**Ce qui déclenche cette alerte.** Lorsque la pluie a été **très faible pendant "
-              "les 3 derniers mois** *et* que **l'humidité du sol est sous la normale**, "
-              "en même temps, pendant la fenêtre critique de croissance "
-              "(**du {start} au {end}**). C'est à ce moment que les cultures pluviales de "
-              "{country} sont les plus vulnérables à la sécheresse — le stress hydrique pendant "
-              "cette fenêtre se traduit directement par des pertes de rendement dans les "
-              "{priority} ({names}).",
+              "directly into yield loss, above all in the {priority} ({names}).",
+        "es": "**Qué activa esta alerta.** Cuando {condition} durante la ventana crítica de "
+              "crecimiento (**{start} al {end}**). Es cuando los cultivos de secano en {country} "
+              "son más vulnerables a la sequía — el estrés hídrico en esta ventana se traduce "
+              "directamente en pérdida de rendimiento, sobre todo en el {priority} ({names}).",
+        "fr": "**Ce qui déclenche cette alerte.** Lorsque {condition} pendant la fenêtre "
+              "critique de croissance (**du {start} au {end}**). C'est à ce moment que les "
+              "cultures pluviales de {country} sont les plus vulnérables à la sécheresse — le "
+              "stress hydrique pendant cette fenêtre se traduit directement par des pertes de "
+              "rendement, surtout dans les {priority} ({names}).",
+    },
+    "alert_cond_rain_soil": {
+        "en": "rainfall has been **{rain}** *and* **soil moisture is below normal** at the same time",
+        "es": "la lluvia ha sido **{rain}** *y* **la humedad del suelo está por debajo de lo normal** al mismo tiempo",
+        "fr": "la pluie a été **{rain}** *et* que **l'humidité du sol est sous la normale** en même temps",
+    },
+    "alert_cond_rain": {
+        "en": "rainfall has been **{rain}**",
+        "es": "la lluvia ha sido **{rain}**",
+        "fr": "la pluie a été **{rain}**",
+    },
+    "rain_spi_3": {
+        "en": "very low over the last 3 months",
+        "es": "muy escasa en los últimos 3 meses",
+        "fr": "très faible au cours des 3 derniers mois",
+    },
+    "rain_spi_1": {
+        "en": "very low over the last month",
+        "es": "muy escasa en el último mes",
+        "fr": "très faible au cours du dernier mois",
+    },
+    "rule_short_rain_soil": {
+        "en": "rainfall {rain} and soil moisture both very low during the alert period",
+        "es": "lluvia {rain} y humedad del suelo muy bajas durante el período de alerta",
+        "fr": "pluie {rain} et humidité du sol très basses pendant la période d'alerte",
+    },
+    "rule_short_rain": {
+        "en": "rainfall {rain} very low during the alert period",
+        "es": "lluvia {rain} muy baja durante el período de alerta",
+        "fr": "pluie {rain} très faible pendant la période d'alerte",
+    },
+    "rain_short_spi_3": {
+        "en": "over the last 3 months",
+        "es": "de los últimos 3 meses",
+        "fr": "des 3 derniers mois",
+    },
+    "rain_short_spi_1": {
+        "en": "over the last month",
+        "es": "del último mes",
+        "fr": "du dernier mois",
+    },
+    "reading_rain_label_spi_1": {
+        "en": "Rainfall (last month)",
+        "es": "Lluvia (último mes)",
+        "fr": "Pluie (dernier mois)",
     },
     "alert_show_triggered": {
         "en": "Show triggered {depts}",
         "es": "Mostrar {depts} con alerta",
         "fr": "Afficher les {depts} en alerte",
     },
+    "alert_scores_note": {
+        "en": "Scores compare each place with what is usual for this time of year: 0 is normal, "
+              "below 0 is drier than usual, and −1.5 or lower is very dry.",
+        "es": "Los puntajes comparan cada lugar con lo habitual para esta época del año: 0 es normal, "
+              "por debajo de 0 es más seco de lo habitual y −1.5 o menos es muy seco.",
+        "fr": "Les scores comparent chaque lieu à ce qui est habituel à cette période de l'année : 0 est "
+              "normal, en dessous de 0 est plus sec que d'habitude, et −1,5 ou moins est très sec.",
+    },
+    "alert_triggered_row_rain": {
+        "en": "- **{dep}** — rainfall score `{spi}`, on {date}",
+        "es": "- **{dep}** — puntaje de lluvia `{spi}`, el {date}",
+        "fr": "- **{dep}** — score de pluie `{spi}`, le {date}",
+    },
+    "alert_triggered_row_frozen": {
+        "en": "- **{dep}** — first fired on {date}",
+        "es": "- **{dep}** — se activó por primera vez el {date}",
+        "fr": "- **{dep}** — premier déclenchement le {date}",
+    },
     "alert_triggered_row": {
-        "en": "- **{dep}** — rainfall index `{spi}`, soil moisture `{rzsm}σ`, on {date}",
-        "es": "- **{dep}** — índice de lluvia `{spi}`, humedad del suelo `{rzsm}σ`, el {date}",
-        "fr": "- **{dep}** — indice de pluie `{spi}`, humidité du sol `{rzsm}σ`, le {date}",
+        "en": "- **{dep}** — rainfall score `{spi}`, soil moisture score `{rzsm}`, on {date}",
+        "es": "- **{dep}** — puntaje de lluvia `{spi}`, puntaje de humedad del suelo `{rzsm}`, el {date}",
+        "fr": "- **{dep}** — score de pluie `{spi}`, score d'humidité du sol `{rzsm}`, le {date}",
     },
     "alert_confidence_heading": {
         "en": "How confident is this alert? (based on {n} years of data)",
@@ -895,8 +1062,8 @@ STRINGS: dict[str, dict[str, str]] = {
 
 Thresholds were chosen by checking which would have flagged the documented
 El Niño drought years for {country} {anchor} without firing in normal years.
-The fire test runs **per {dept}** — if any one of the {priority} ({names})
-crosses both thresholds, the alert is raised. With only {n_years} years of
+The fire test runs **per {dept}** — if any {dept} in {country} crosses both
+thresholds, the alert is raised. With only {n_years} years of
 soil-moisture data, the margin of error is still wide. Re-run
 `COUNTRY={country_key} python -m el_nino.experiments.trigger_calibration`
 annually as more data accumulates.
@@ -911,8 +1078,8 @@ annually as more data accumulates.
 
 Los umbrales se eligieron verificando cuáles habrían señalado los años de
 sequía por El Niño documentados para {country} {anchor} sin activarse en años
-normales. La prueba se ejecuta **por {dept}** — si cualquiera de los del
-{priority} ({names}) cruza ambos umbrales, se emite la alerta. Con solo
+normales. La prueba se ejecuta **por {dept}** — si cualquier {dept} de {country}
+cruza ambos umbrales, se emite la alerta. Con solo
 {n_years} años de datos de humedad del suelo, el margen de error sigue siendo
 amplio. Vuelva a ejecutar
 `COUNTRY={country_key} python -m el_nino.experiments.trigger_calibration`
@@ -928,8 +1095,8 @@ cada año a medida que se acumulen más datos.
 
 Les seuils ont été choisis en vérifiant lesquels auraient signalé les années
 de sécheresse El Niño documentées pour {country} {anchor} sans se déclencher
-les années normales. Le test s'exécute **par {dept}** — si l'un des
-{priority} ({names}) franchit les deux seuils, l'alerte est émise. Avec
+les années normales. Le test s'exécute **par {dept}** — si n'importe quel {dept} d'{country}
+franchit les deux seuils, l'alerte est émise. Avec
 seulement {n_years} années de données d'humidité du sol, la marge d'erreur
 reste large. Relancez
 `COUNTRY={country_key} python -m el_nino.experiments.trigger_calibration`

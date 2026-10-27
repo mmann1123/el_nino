@@ -82,6 +82,15 @@ class Indicator(ABC):
     default_chunk_months: int = 12
     min_chunk_months: int = 1
 
+    # Weight the department mean by cropland fraction instead of averaging every
+    # pixel. Whole-department means let forest and other non-crop cover mask
+    # crop stress: in primera 2026, cropland ETa in La Union and Morazan was
+    # about half the department mean, and only the cropland series ranked the
+    # east worst, as Acceso's field assessment found
+    # (experiments/primera_2026_eval_report.md). Changing it for an indicator
+    # changes its whole series — re-backfill it and re-run `finalize`.
+    crop_weighted: bool = False
+
     @abstractmethod
     def fetch(self, start: date, end: date) -> pd.DataFrame:
         """Pull observations for [start, end] across all departamentos in the AOI."""
@@ -167,19 +176,28 @@ class Indicator(ABC):
         """Reduce an ImageCollection to a tidy (date, departamento, value) DataFrame.
 
         Default reducer is mean over the polygon at the asset's native scale.
+        With ``crop_weighted``, each pixel is weighted by its cropland fraction.
         """
         import ee
         reducer = reducer or ee.Reducer.mean()
         aoi = self.aoi()
+        crop = cropland_fraction() if self.crop_weighted else None
 
         def per_image(img):
-            stats = img.select(band).reduceRegions(
+            values = img.select(band)
+            if crop is not None:
+                # A fractional mask is a weight in GEE's mean reducer.
+                values = values.updateMask(crop)
+            stats = values.reduceRegions(
                 collection=aoi,
                 reducer=reducer,
                 scale=img.projection().nominalScale(),
             )
             date_str = img.date().format("YYYY-MM-dd")
-            return stats.map(lambda f: f.set({"date": date_str, "indicator_band": band}))
+            # Drop the department polygon from every result: getInfo() would
+            # otherwise ship a full copy of the AOI per image, which OOMs a
+            # 2 GiB Cloud Run Job on a multi-year WAPOR chunk.
+            return stats.map(lambda f: f.setGeometry(None).set({"date": date_str, "indicator_band": band}))
 
         flat = coll.map(per_image).flatten()
         info = flat.getInfo()
@@ -227,6 +245,17 @@ class Indicator(ABC):
             return ee.Image(agg).rename(out_band).set("system:time_start", d.millis())
 
         return ee.ImageCollection(days.map(_per_day))
+
+
+CROPLAND_SCALE_M = 300
+
+
+def cropland_fraction():
+    """ESA WorldCover 2021 cropland (class 40) as a 0-1 fraction on a 300 m grid."""
+    import ee
+    wc = ee.ImageCollection("ESA/WorldCover/v200").first().select("Map").eq(40)
+    return (wc.reduceResolution(reducer=ee.Reducer.mean(), maxPixels=4096)
+            .reproject(crs="EPSG:4326", scale=CROPLAND_SCALE_M))
 
 
 # ---- date-window helpers ----

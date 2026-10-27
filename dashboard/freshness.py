@@ -89,6 +89,18 @@ def indicator_badge(indicator: str, today_: date) -> str:
     return i18n.t("badge_last_obs", emoji=emoji, date=last_obs, lag=suffix, cadence=cadence_note)
 
 
+def is_stale(indicator: str, today_: date) -> bool:
+    """True once the latest observation is more than 3 update cycles old (the
+    🔴 badge). Status displays then show "No recent data" instead of
+    classifying an old reading as current."""
+    ind_cls = INDICATORS.get(indicator)
+    last_obs = _last_obs_from_parquet(indicator)
+    if ind_cls is None or last_obs is None:
+        return False
+    spec = ind_cls.freshness
+    return freshness_io.classify(last_obs, spec.fresh_days, spec.aging_days, today_) == "stale"
+
+
 def last_observation_date(indicator: str) -> date | None:
     """Latest OBSERVED (non-forecast) date for this indicator. Always reads
     from the parquet so the value stays in sync after prelim/forecast/fetch

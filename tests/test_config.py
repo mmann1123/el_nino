@@ -19,13 +19,19 @@ class TestCountriesRegistry:
         cc = config.COUNTRIES[key]
         for field in ("iso2", "display_name", "aoi_filename", "map_center",
                       "map_zoom", "dept_term", "priority_departments",
-                      "silking_window", "labeled_events"):
+                      "seasons"):
             assert field in cc, f"{key} missing {field}"
 
     @pytest.mark.parametrize("key", list(config.COUNTRIES))
-    def test_silking_window_is_ordered_doy_pair(self, key):
-        lo, hi = config.COUNTRIES[key]["silking_window"]
-        assert 1 <= lo < hi <= 366
+    def test_seasons_are_well_formed(self, key):
+        seasons = config.COUNTRIES[key]["seasons"]
+        assert len({s["key"] for s in seasons}) == len(seasons)
+        for s in seasons:
+            assert {"key", "start", "end", "alert_window_doy", "confirm_rule",
+                    "labeled_events"} <= set(s)
+            if s["alert_window_doy"] is not None:
+                lo, hi = s["alert_window_doy"]
+                assert 1 <= lo < hi <= 366
 
     @pytest.mark.parametrize("key", list(config.COUNTRIES))
     def test_priority_departments_nonempty(self, key):
@@ -38,9 +44,10 @@ class TestCountriesRegistry:
 
     @pytest.mark.parametrize("key", list(config.COUNTRIES))
     def test_labeled_event_keys_are_years(self, key):
-        for year in config.COUNTRIES[key]["labeled_events"]:
-            assert isinstance(year, int)
-            assert 1980 <= year <= 2100
+        for s in config.COUNTRIES[key]["seasons"]:
+            for year in s["labeled_events"]:
+                assert isinstance(year, int)
+                assert 1980 <= year <= 2100
 
 
 class TestCountryDepartments:
@@ -78,3 +85,15 @@ class TestCountryDepartments:
             assert config.country_departments() == frozenset()
         finally:
             config.country_departments.cache_clear()
+
+
+@pytest.mark.parametrize("key", list(config.COUNTRIES))
+def test_alert_windows_fall_inside_their_season(key):
+    from datetime import date, timedelta
+    from el_nino.etl import season as season_mod
+    for s in config.COUNTRIES[key]["seasons"]:
+        if s["alert_window_doy"] is None:
+            continue
+        start, end = season_mod.season_bounds(2026, s)
+        lo, hi = (date(2026, 1, 1) + timedelta(days=d - 1) for d in s["alert_window_doy"])
+        assert start <= lo and hi <= end, s["key"]

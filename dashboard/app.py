@@ -33,6 +33,7 @@ from el_nino.dashboard import (
     freshness,
     i18n,
     map as map_view,
+    season_view,
     site_footer,
     status as status_view,
 )  # noqa: E402
@@ -185,7 +186,7 @@ def _on_dep_dropdown_changed() -> None:
 # widget or by a click on the country map below).
 default_idx = deps_available.index(st.session_state.get("dep_choice", default_dep))
 departamento = st.sidebar.selectbox(
-    config.CC["dept_term"].capitalize(),
+    i18n.dept_term().capitalize(),
     deps_available,
     index=default_idx,
     format_func=lambda d: i18n.dep_display(d, data.ALL),
@@ -193,7 +194,7 @@ departamento = st.sidebar.selectbox(
     help=i18n.t(
         "dep_select_help",
         country=config.CC["display_name"],
-        dept=config.CC["dept_term"],
+        dept=i18n.dept_term(),
         all=i18n.t("all_country_mean"),
         priority=i18n.priority_label(),
         names=config.CC["priority_display_names"],
@@ -259,10 +260,10 @@ with tabs[0]:
                 i18n.t(
                     "map_title",
                     indicator=INDICATOR_LABELS[indicator_name].split("(")[0].strip(),
-                    depts=config.CC["dept_term_plural"],
+                    depts=i18n.dept_term(plural=True),
                 )
                 + "  \n<span style='font-size:0.85em;color:#546e7a;'>"
-                + i18n.t("map_click_hint", dept=config.CC["dept_term"])
+                + i18n.t("map_click_hint", dept=i18n.dept_term())
                 + "</span>",
                 unsafe_allow_html=True,
             )
@@ -283,7 +284,7 @@ with tabs[0]:
                 if st.button(
                     i18n.t("select_all_btn"),
                     key="select_all_btn",
-                    help=i18n.t("select_all_help", depts=config.CC["dept_term_plural"]),
+                    help=i18n.t("select_all_help", depts=i18n.dept_term(plural=True)),
                     width="stretch",
                 ):
                     if st.session_state.get("dep_choice") != data.ALL:
@@ -322,6 +323,7 @@ with tabs[0]:
             drought_status.D2,
             drought_status.D3,
             drought_status.D4,
+            drought_status.STALE,
         ]:
             st.markdown(
                 f"<div style='display:flex;align-items:center;margin:2px 0;'>"
@@ -330,6 +332,10 @@ with tabs[0]:
                 f"<span style='font-size:0.85em;'>{cat.label}</span></div>",
                 unsafe_allow_html=True,
             )
+
+    # This season's departments that fired, kept until the season ends — the
+    # "where has it gone wrong so far" answer sits directly under the map.
+    season_view.render(today_)
 
     st.divider()
 
@@ -435,7 +441,10 @@ with tabs[0]:
                 ind_cls.status_window_days,
                 today_,
             )
-            cat = drought_status.classify(latest_z)
+            if freshness.is_stale(ind_name, today_):
+                cat = drought_status.STALE
+            else:
+                cat = drought_status.classify(latest_z)
             st.markdown(
                 f"<span style='background-color:{cat.color};color:{cat.text_color};"
                 "padding:4px 12px;border-radius:6px;font-weight:600;'>"
@@ -461,7 +470,7 @@ with tabs[1]:
 
     ind_df = data.load_indicator(indicator_name, departamento)
     if ind_df.empty:
-        st.info(i18n.t("detail_no_data", dept=config.CC["dept_term"]))
+        st.info(i18n.t("detail_no_data", dept=i18n.dept_term()))
     else:
         clim = data.load_climatology(indicator_name, departamento, primary)
         window_start = pd.Timestamp(today_) - pd.Timedelta(days=365)
@@ -492,7 +501,8 @@ with tabs[1]:
             indicator_cls.status_window_days,
             today_,
         )
-        cat = drought_status.classify(latest_z)
+        stale = freshness.is_stale(indicator_name, today_)
+        cat = drought_status.STALE if stale else drought_status.classify(latest_z)
         st.markdown(f"### {i18n.t('current_status')}")
         c1, c2 = st.columns([1, 2])
         with c1:
@@ -507,7 +517,8 @@ with tabs[1]:
             # under the badge instead of in a separate caption above the chart.
             st.caption(freshness.indicator_badge(indicator_name, today_))
         with c2:
-            st.write(drought_status.plain_language(latest_z))
+            if not stale:
+                st.write(drought_status.plain_language(latest_z))
             st.caption(cat.description)
 
         with st.expander(i18n.t("tech_details")):
