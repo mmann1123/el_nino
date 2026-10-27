@@ -20,7 +20,11 @@ class CHIRPS(Indicator):
     name = "chirps"
     primary_column = "spi_3"
     value_columns = ["precip_pentad_mm", "spi_1", "spi_3", "spi_6"]
-    freshness = FreshnessSpec.from_cadence(3)
+    # Pentad product: a new complete pentad lands every 5 days (plus ~3 days
+    # of CHIRPS-Prelim latency), so fresh ≤ 8 and aging ≤ 15 days. The
+    # earlier cadence of 3 described the latency, not the data, and turned
+    # the map red ("No recent data") on any ordinary upstream delay.
+    freshness = FreshnessSpec.from_cadence(5)
     has_forecast = True
     status_window_days = 5  # one pentad — SPI-3 is already 3-month rolling
     # Pentad aggregation keeps feature count low (14 × 73 ≈ 1022/yr), so big chunks work.

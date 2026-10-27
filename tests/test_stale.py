@@ -35,6 +35,16 @@ def test_live_wapor_case_is_stale(monkeypatch):
     assert freshness.is_stale("wapor", TODAY) is True
 
 
+def test_live_chirps_pentad_lag_is_not_stale(monkeypatch):
+    # The live dashboard on 2026-10-27: UCSB CHIRPS-Prelim had published only
+    # through Oct 20, so the newest complete pentad ended Oct 17 (10 days).
+    # CHIRPS is a pentad product with ~3 days of latency, so the newest
+    # complete pentad normally trails today by up to a week; a lag of 10
+    # days is one slow upload, not "no recent data".
+    monkeypatch.setattr(freshness, "_last_obs_from_parquet", lambda _ind: date(2026, 10, 17))
+    assert freshness.is_stale("chirps", date(2026, 10, 27)) is False
+
+
 def test_stale_category_is_distinct_from_pending():
     assert drought_status.STALE.label == "No recent data"
     assert not drought_status.STALE.is_pending
